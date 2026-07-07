@@ -163,7 +163,7 @@ function getCompletionContext(
   const textBeforeCursor = document.getText(
     new vscode.Range(new vscode.Position(0, 0), position),
   );
-  return getSqlCompletionContext(textBeforeCursor);
+  return getSqlCompletionContext(textBeforeCursor, document.getText());
 }
 
 function createColumnItems(
@@ -172,14 +172,30 @@ function createColumnItems(
 ): vscode.CompletionItem[] {
   return details.flatMap((table) =>
     table.columns.map((column) => {
-      const item = new vscode.CompletionItem(column.name, vscode.CompletionItemKind.Field);
-      item.detail = `${aliasQualifier ?? table.name}.${column.name}`;
-      item.documentation = [
-        column.type || 'column',
+      const item = new vscode.CompletionItem(
+        {
+          label: column.name,
+          detail: column.comment ? ` ${column.comment}` : undefined,
+          description: column.type || undefined,
+        },
+        vscode.CompletionItemKind.Field,
+      );
+      const source = `${aliasQualifier ?? table.name}.${column.name}`;
+      item.detail = [
+        source,
+        column.type || undefined,
         column.primaryKey ? 'primary key' : undefined,
         column.nullable ? 'nullable' : 'not null',
       ].filter(Boolean).join(' · ');
+      item.documentation = new vscode.MarkdownString([
+        `**${source}**`,
+        '',
+        `Type: \`${column.type || 'unknown'}\``,
+        column.comment ? `Comment: ${column.comment}` : undefined,
+        column.defaultValue !== undefined ? `Default: \`${column.defaultValue}\`` : undefined,
+      ].filter(Boolean).join('\n\n'));
       item.insertText = column.name;
+      item.sortText = column.ordinal.toString().padStart(4, '0');
       return item;
     }),
   );

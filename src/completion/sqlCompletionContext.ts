@@ -10,8 +10,14 @@ export interface TableReference {
   alias: string;
 }
 
-export function getSqlCompletionContext(textBeforeCursor: string): CompletionContext {
-  const currentStatement = getCurrentStatement(textBeforeCursor);
+export function getSqlCompletionContext(
+  textBeforeCursor: string,
+  fullText = textBeforeCursor,
+): CompletionContext {
+  const currentStatement = getCurrentStatementAtCursor(
+    fullText,
+    textBeforeCursor.length,
+  );
 
   return {
     aliasQualifier: getAliasQualifier(textBeforeCursor),
@@ -55,9 +61,16 @@ export function normalizeIdentifier(identifier: string): string {
     .toLowerCase();
 }
 
-function getCurrentStatement(text: string): string {
-  const lastSemicolon = text.lastIndexOf(';');
-  return lastSemicolon === -1 ? text : text.slice(lastSemicolon + 1);
+function getCurrentStatementAtCursor(text: string, cursorOffset: number): string {
+  const beforeCursor = text.slice(0, cursorOffset);
+  const afterCursor = text.slice(cursorOffset);
+  const statementStart = beforeCursor.lastIndexOf(';') + 1;
+  const nextSemicolon = afterCursor.indexOf(';');
+  const statementEnd = nextSemicolon === -1
+    ? text.length
+    : cursorOffset + nextSemicolon;
+
+  return text.slice(statementStart, statementEnd);
 }
 
 function getAliasQualifier(textBeforeCursor: string): string | undefined {
