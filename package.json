@@ -150,6 +150,13 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "sqlWorkbench.query.runCurrent",
+        "key": "shift+enter",
+        "when": "editorTextFocus && resourceLangId == sql"
+      }
+    ],
     "configuration": {
       "title": "SQL Workbench",
       "properties": {
