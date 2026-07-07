@@ -2,14 +2,24 @@ import * as vscode from 'vscode';
 import {
   DatabaseConnection,
   DatabaseConnectionTreeItem,
+  DatabaseColumnTreeItem,
   DatabaseEmptyTreeItem,
   DatabaseGroupTreeItem,
+  DatabaseTablesTreeItem,
+  DatabaseTableTreeItem,
   DatabaseTreeItem,
 } from './treeItems';
 import { normalizeConnectionGroup } from '../connection/types';
+import type { SchemaInspector } from '../schema/inspector';
+import type { TableInfo } from '../schema/types';
 
 export interface ConnectionStoreLike {
   list(): DatabaseConnection[] | Promise<DatabaseConnection[]>;
+}
+
+export interface DatabaseTreeProviderOptions {
+  connectionStore: ConnectionStoreLike;
+  schemaInspector: SchemaInspector;
 }
 
 export class DatabaseTreeProvider
@@ -28,8 +38,13 @@ export class DatabaseTreeProvider
 
   private cachedConnections: DatabaseConnection[] = [];
   private isCacheLoaded = false;
+  private readonly connectionStore: ConnectionStoreLike;
+  private readonly schemaInspector: SchemaInspector;
 
-  constructor(private readonly connectionStore: ConnectionStoreLike) {}
+  constructor(options: DatabaseTreeProviderOptions) {
+    this.connectionStore = options.connectionStore;
+    this.schemaInspector = options.schemaInspector;
+  }
 
   public refresh(item?: DatabaseTreeItem): void {
     if (!item) {
@@ -47,7 +62,15 @@ export class DatabaseTreeProvider
     element?: DatabaseTreeItem,
   ): Promise<DatabaseTreeItem[]> {
     if (element instanceof DatabaseConnectionTreeItem) {
-      return [];
+      return [new DatabaseTablesTreeItem(element.connection)];
+    }
+
+    if (element instanceof DatabaseTablesTreeItem) {
+      return this.createTableItems(element.connection);
+    }
+
+    if (element instanceof DatabaseTableTreeItem) {
+      return this.createColumnItems(element.table);
     }
 
     const connections = await this.getConnections();
@@ -108,7 +131,51 @@ export class DatabaseTreeProvider
       .map((connection) => new DatabaseConnectionTreeItem(connection));
   }
 
+  private async createTableItems(
+    connection: DatabaseConnection,
+  ): Promise<DatabaseTreeItem[]> {
+    try {
+      const tables = await this.schemaInspector.listTables(connection);
+
+      if (tables.length === 0) {
+        return [new DatabaseEmptyTreeItem('No tables found', '')];
+      }
+
+      return tables
+        .sort((left, right) => this.compareNames(left.name, right.name))
+        .map((table) => new DatabaseTableTreeItem(table));
+    } catch (error) {
+      return [new DatabaseEmptyTreeItem(getErrorMessage(error))];
+    }
+  }
+
+  private async createColumnItems(
+    table: TableInfo,
+  ): Promise<DatabaseTreeItem[]> {
+    try {
+      const details = await this.schemaInspector.getTableDetails(table);
+
+      if (details.columns.length === 0) {
+        return [new DatabaseEmptyTreeItem('No columns found', '')];
+      }
+
+      return details.columns.map(
+        (column) => new DatabaseColumnTreeItem(table, column),
+      );
+    } catch (error) {
+      return [new DatabaseEmptyTreeItem(getErrorMessage(error))];
+    }
+  }
+
   private compareNames(left: string, right: string): number {
     return this.collator.compare(left, right);
   }
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

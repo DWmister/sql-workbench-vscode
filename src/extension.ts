@@ -6,12 +6,15 @@ import {
   isConnectionType,
 } from './connection/types';
 import { registerQueryCommands } from './query/commands';
+import { createSchemaInspector } from './schema/inspector';
+import { TableDetailsPanel } from './schema/tableDetailsPanel';
 import { DatabaseTreeProvider } from './tree/databaseTreeProvider';
 import {
   DATABASE_TREE_VIEW_ID,
   DatabaseTreeCommandIds,
   type DatabaseConnection,
   DatabaseConnectionTreeItem,
+  DatabaseTableTreeItem,
 } from './tree/treeItems';
 
 const ACTIVE_CONNECTION_KEY = 'sqlWorkbench.activeConnectionId';
@@ -22,15 +25,20 @@ export function activate(context: vscode.ExtensionContext): void {
     context.secrets,
   );
   const activeConnection = new ActiveConnectionState(context, connectionStore);
+  const schemaInspector = createSchemaInspector();
+  const tableDetailsPanel = new TableDetailsPanel(context.extensionUri);
   const treeProvider = new DatabaseTreeProvider({
-    async list() {
-      const connections = await connectionStore.list();
-      const activeId = activeConnection.getId();
-      return connections.map((connection) => ({
-        ...connection,
-        status: connection.id === activeId ? 'connected' : 'disconnected',
-      }));
+    connectionStore: {
+      async list() {
+        const connections = await connectionStore.list();
+        const activeId = activeConnection.getId();
+        return connections.map((connection) => ({
+          ...connection,
+          status: connection.id === activeId ? 'connected' : 'disconnected',
+        }));
+      },
     },
+    schemaInspector,
   });
   const statusBar = new ActiveConnectionStatusBar(activeConnection);
 
@@ -127,6 +135,29 @@ export function activate(context: vscode.ExtensionContext): void {
       treeProvider.refresh();
       await statusBar.refresh();
       await openQueryDocument(target);
+    }),
+    registerCommand(DatabaseTreeCommandIds.openTableDetails, async (argument?: unknown) => {
+      const table = extractTableArgument(argument);
+      if (!table) {
+        vscode.window.showWarningMessage('Choose a table to inspect.');
+        return;
+      }
+
+      await activeConnection.set(table.connection.id);
+      treeProvider.refresh();
+      await statusBar.refresh();
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Loading columns for ${table.name}`,
+          cancellable: false,
+        },
+        async () => {
+          const details = await schemaInspector.getTableDetails(table);
+          tableDetailsPanel.show(details);
+        },
+      );
     }),
     ...registerQueryCommands(context, {
       resolveConnection: async () => {
@@ -409,6 +440,18 @@ function extractConnectionArgument(argument: unknown): DatabaseConnection | unde
 
   if (isConnectionLike(argument)) {
     return argument;
+  }
+
+  return undefined;
+}
+
+function extractTableArgument(argument: unknown) {
+  if (!argument) {
+    return undefined;
+  }
+
+  if (argument instanceof DatabaseTableTreeItem) {
+    return argument.table;
   }
 
   return undefined;

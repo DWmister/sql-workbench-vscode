@@ -21,7 +21,8 @@
     "onCommand:sqlWorkbench.connection.switchActive",
     "onCommand:sqlWorkbench.query.open",
     "onCommand:sqlWorkbench.query.runCurrent",
-    "onCommand:sqlWorkbench.query.runAll"
+    "onCommand:sqlWorkbench.query.runAll",
+    "onCommand:sqlWorkbench.schema.openTable"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -89,6 +90,12 @@
         "title": "Run All Queries",
         "category": "SQL Workbench",
         "icon": "$(run-all)"
+      },
+      {
+        "command": "sqlWorkbench.schema.openTable",
+        "title": "Open Table Columns",
+        "category": "SQL Workbench",
+        "icon": "$(table)"
       }
     ],
     "menus": {
@@ -131,6 +138,11 @@
           "command": "sqlWorkbench.connection.delete",
           "when": "view == sqlWorkbench.connections && viewItem == connection",
           "group": "inline@3"
+        },
+        {
+          "command": "sqlWorkbench.schema.openTable",
+          "when": "view == sqlWorkbench.connections && viewItem == table",
+          "group": "inline@1"
         }
       ]
     },

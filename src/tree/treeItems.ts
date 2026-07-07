@@ -3,6 +3,7 @@ import {
   type ConnectionConfig,
   normalizeConnectionGroup,
 } from '../connection/types';
+import type { ColumnInfo, TableInfo } from '../schema/types';
 
 export const DATABASE_TREE_VIEW_ID = 'sqlWorkbench.connections';
 
@@ -10,6 +11,7 @@ export const DatabaseTreeCommandIds = {
   addConnection: 'sqlWorkbench.connection.add',
   deleteConnection: 'sqlWorkbench.connection.delete',
   editConnection: 'sqlWorkbench.connection.edit',
+  openTableDetails: 'sqlWorkbench.schema.openTable',
   openQuery: 'sqlWorkbench.query.open',
   refresh: 'sqlWorkbench.connection.refresh',
   switchActiveConnection: 'sqlWorkbench.connection.switchActive',
@@ -30,6 +32,9 @@ export interface DatabaseConnection extends ConnectionConfig {
 export type DatabaseTreeItem =
   | DatabaseGroupTreeItem
   | DatabaseConnectionTreeItem
+  | DatabaseTablesTreeItem
+  | DatabaseTableTreeItem
+  | DatabaseColumnTreeItem
   | DatabaseEmptyTreeItem;
 
 export function normalizeConnectionStatus(
@@ -58,7 +63,7 @@ export class DatabaseConnectionTreeItem extends vscode.TreeItem {
   public readonly contextValue = 'connection';
 
   constructor(public readonly connection: DatabaseConnection) {
-    super(connection.name, vscode.TreeItemCollapsibleState.None);
+    super(connection.name, vscode.TreeItemCollapsibleState.Collapsed);
 
     const status = normalizeConnectionStatus(connection.status);
     const group = normalizeConnectionGroup(connection.group);
@@ -75,17 +80,75 @@ export class DatabaseConnectionTreeItem extends vscode.TreeItem {
   }
 }
 
+export class DatabaseTablesTreeItem extends vscode.TreeItem {
+  public readonly contextValue = 'tables';
+
+  constructor(public readonly connection: DatabaseConnection) {
+    super('Tables', vscode.TreeItemCollapsibleState.Collapsed);
+
+    this.id = `sqlWorkbench.connection.${connection.id}.tables`;
+    this.iconPath = new vscode.ThemeIcon('list-tree');
+    this.tooltip = `Tables in ${connection.name}`;
+  }
+}
+
+export class DatabaseTableTreeItem extends vscode.TreeItem {
+  public readonly contextValue = 'table';
+
+  constructor(public readonly table: TableInfo) {
+    super(table.name, vscode.TreeItemCollapsibleState.Collapsed);
+
+    const suffix = table.schema ? `${table.schema}.${table.name}` : table.name;
+
+    this.id = `sqlWorkbench.connection.${table.connection.id}.table.${suffix}`;
+    this.iconPath = new vscode.ThemeIcon('table');
+    this.tooltip = `${suffix}\nClick to inspect columns.`;
+    this.command = {
+      command: DatabaseTreeCommandIds.openTableDetails,
+      title: 'Open Table Columns',
+      arguments: [this],
+    };
+  }
+}
+
+export class DatabaseColumnTreeItem extends vscode.TreeItem {
+  public readonly contextValue = 'column';
+
+  constructor(
+    public readonly table: TableInfo,
+    public readonly column: ColumnInfo,
+  ) {
+    super(column.name, vscode.TreeItemCollapsibleState.None);
+
+    this.id = [
+      'sqlWorkbench',
+      table.connection.id,
+      table.schema ?? '',
+      table.name,
+      column.ordinal,
+      column.name,
+    ].join('.');
+    this.description = buildColumnDescription(column);
+    this.tooltip = buildColumnTooltip(column);
+    this.iconPath = column.primaryKey
+      ? new vscode.ThemeIcon('key')
+      : new vscode.ThemeIcon('symbol-field');
+  }
+}
+
 export class DatabaseEmptyTreeItem extends vscode.TreeItem {
   public readonly contextValue = 'empty';
 
-  constructor() {
-    super('No connections yet', vscode.TreeItemCollapsibleState.None);
-    this.description = 'Add one to get started';
+  constructor(label = 'No connections yet', description = 'Add one to get started') {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.description = description;
     this.iconPath = new vscode.ThemeIcon('info');
-    this.command = {
-      command: DatabaseTreeCommandIds.addConnection,
-      title: 'Add Connection',
-    };
+    if (label === 'No connections yet') {
+      this.command = {
+        command: DatabaseTreeCommandIds.addConnection,
+        title: 'Add Connection',
+      };
+    }
   }
 }
 
@@ -138,4 +201,29 @@ function buildConnectionTooltip(
   }
 
   return detailLines.join('\n');
+}
+
+function buildColumnDescription(column: ColumnInfo): string {
+  const flags = [
+    column.type,
+    column.primaryKey ? 'PK' : undefined,
+    column.nullable ? undefined : 'not null',
+  ].filter(Boolean);
+
+  return flags.join(' ');
+}
+
+function buildColumnTooltip(column: ColumnInfo): string {
+  const lines = [
+    column.name,
+    `Type: ${column.type || '-'}`,
+    `Nullable: ${column.nullable ? 'YES' : 'NO'}`,
+    `Primary key: ${column.primaryKey ? 'YES' : 'NO'}`,
+  ];
+
+  if (column.defaultValue !== undefined) {
+    lines.push(`Default: ${column.defaultValue}`);
+  }
+
+  return lines.join('\n');
 }
