@@ -98,6 +98,7 @@ async function getSqliteTableDetails(
       return {
         name,
         type,
+        length: getTypeLength(type),
         nullable: !notNull && !primaryKey,
         primaryKey,
         defaultValue,
@@ -177,9 +178,11 @@ async function getMysqlTableDetails(
       SELECT
         column_name AS name,
         column_type AS type,
+        COALESCE(character_maximum_length, numeric_precision) AS length,
         is_nullable AS nullable,
         column_key AS column_key,
         column_default AS default_value,
+        column_comment AS comment,
         ordinal_position AS ordinal
       FROM information_schema.columns
       WHERE table_schema = ?
@@ -192,6 +195,8 @@ async function getMysqlTableDetails(
     const columns = (rows as MysqlColumnRow[]).map((row): ColumnInfo => ({
       name: row.name,
       type: row.type,
+      length: row.length === null || row.length === undefined ? undefined : String(row.length),
+      comment: normalizeOptionalText(row.comment),
       nullable: row.nullable === 'YES',
       primaryKey: row.column_key === 'PRI',
       defaultValue: row.default_value === null ? undefined : String(row.default_value),
@@ -244,9 +249,14 @@ async function getPostgresqlTableDetails(
           WHEN c.numeric_precision IS NOT NULL AND c.numeric_scale IS NOT NULL THEN c.data_type || '(' || c.numeric_precision || ',' || c.numeric_scale || ')'
           ELSE c.data_type
         END AS type,
+        COALESCE(c.character_maximum_length, c.numeric_precision) AS length,
         c.is_nullable AS nullable,
         c.column_default AS default_value,
         c.ordinal_position AS ordinal,
+        pg_catalog.col_description(
+          (quote_ident(c.table_schema) || '.' || quote_ident(c.table_name))::regclass::oid,
+          c.ordinal_position
+        ) AS comment,
         EXISTS (
           SELECT 1
           FROM information_schema.table_constraints tc
@@ -270,6 +280,8 @@ async function getPostgresqlTableDetails(
     const columns = result.rows.map((row: PostgresqlColumnRow): ColumnInfo => ({
       name: row.name,
       type: row.type,
+      length: row.length === null || row.length === undefined ? undefined : String(row.length),
+      comment: normalizeOptionalText(row.comment),
       nullable: row.nullable === 'YES',
       primaryKey: row.primary_key,
       defaultValue: row.default_value === null ? undefined : row.default_value,
@@ -315,17 +327,31 @@ async function openPostgresqlClient(
 interface MysqlColumnRow {
   name: string;
   type: string;
+  length: number | null;
   nullable: 'YES' | 'NO';
   column_key: string;
   default_value: unknown;
+  comment: string | null;
   ordinal: number;
 }
 
 interface PostgresqlColumnRow {
   name: string;
   type: string;
+  length: number | null;
   nullable: 'YES' | 'NO';
   default_value: string | null;
+  comment: string | null;
   ordinal: number;
   primary_key: boolean;
+}
+
+function getTypeLength(type: string): string | undefined {
+  const match = /\(([^)]+)\)/.exec(type);
+  return match?.[1];
+}
+
+function normalizeOptionalText(value: string | null | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
 }

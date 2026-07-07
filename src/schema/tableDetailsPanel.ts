@@ -110,17 +110,17 @@ function renderTableDetailsHtml(
     }
     .table-wrap {
       overflow: auto;
+      max-height: calc(100vh - 178px);
       border: 1px solid var(--border);
       border-radius: 6px;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      table-layout: auto;
+      table-layout: fixed;
     }
     th,
     td {
-      max-width: 420px;
       padding: 8px 10px;
       border-right: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
@@ -132,9 +132,28 @@ function renderTableDetailsHtml(
     }
     th {
       position: sticky;
-      top: 45px;
+      top: 0;
+      z-index: 1;
       background: var(--vscode-editorGroupHeader-tabsBackground);
       font-weight: 600;
+    }
+    .col-name {
+      width: 22%;
+    }
+    .col-type {
+      width: 18%;
+    }
+    .col-length {
+      width: 9%;
+    }
+    .col-comment {
+      width: 24%;
+    }
+    .col-flag {
+      width: 9%;
+    }
+    .col-default {
+      width: 10%;
     }
     tr:last-child td {
       border-bottom: none;
@@ -201,12 +220,13 @@ function renderColumns(columns: ColumnInfo[]): string {
     <table>
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Nullable</th>
-          <th>Primary Key</th>
-          <th>Default</th>
-          <th>Ordinal</th>
+          <th class="col-name">Name</th>
+          <th class="col-type">Type</th>
+          <th class="col-length">Length</th>
+          <th class="col-comment">Comment</th>
+          <th class="col-flag">Nullable</th>
+          <th class="col-flag">Primary Key</th>
+          <th class="col-default">Default</th>
         </tr>
       </thead>
       <tbody>
@@ -222,12 +242,13 @@ function renderColumn(column: ColumnInfo): string {
     : escapeHtml(column.name);
 
   return `<tr>
-    <td title="${escapeAttribute(column.name)}">${name}</td>
-    <td title="${escapeAttribute(column.type)}">${escapeHtml(column.type || '-')}</td>
-    <td>${column.nullable ? 'YES' : 'NO'}</td>
-    <td>${column.primaryKey ? 'YES' : 'NO'}</td>
-    <td title="${escapeAttribute(column.defaultValue ?? '')}">${escapeHtml(column.defaultValue ?? '')}</td>
-    <td>${column.ordinal + 1}</td>
+    <td class="col-name" title="${escapeAttribute(column.name)}">${name}</td>
+    <td class="col-type" title="${escapeAttribute(column.type)}">${escapeHtml(column.type || '-')}</td>
+    <td class="col-length" title="${escapeAttribute(column.length ?? '')}">${escapeHtml(column.length ?? '')}</td>
+    <td class="col-comment" title="${escapeAttribute(column.comment ?? '')}">${escapeHtml(column.comment ?? '')}</td>
+    <td class="col-flag">${column.nullable ? 'YES' : 'NO'}</td>
+    <td class="col-flag">${column.primaryKey ? 'YES' : 'NO'}</td>
+    <td class="col-default" title="${escapeAttribute(column.defaultValue ?? '')}">${escapeHtml(column.defaultValue ?? '')}</td>
   </tr>`;
 }
 
