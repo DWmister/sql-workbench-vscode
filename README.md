@@ -18,10 +18,12 @@ Implemented MVP includes:
 - Extension manifest and Database activity bar view.
 - Connection model and connection store for MySQL/MariaDB, PostgreSQL, and SQLite.
 - Grouped connection TreeView.
-- Add / edit name / delete / refresh connection commands.
+- Webview connection form with save and test connection actions.
+- Edit name / delete / refresh connection commands.
 - Active connection status bar item and QuickPick switcher.
 - `Open Query` command that opens an untitled SQL file bound by comment to the selected connection.
 - Run current SQL statement or full SQL document from the native VS Code editor.
+- `Shift+Enter` runs the current SQL statement.
 - Read-only result webview for query output.
 - Read-only schema tree: connection -> tables -> table -> columns.
 - Read-only table column inspector opened beside the editor.

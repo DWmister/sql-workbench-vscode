@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import { registerSqlCompletionProvider } from './completion/sqlCompletionProvider';
+import { ConnectionFormPanel } from './connection/connectionFormPanel';
 import { ConnectionStore } from './connection/connectionStore';
+import { testConnection } from './connection/connectionTester';
 import {
   type ConnectionConfig,
-  type ConnectionType,
   isConnectionType,
 } from './connection/types';
 import { registerQueryCommands } from './query/commands';
@@ -44,6 +45,18 @@ export function activate(context: vscode.ExtensionContext): void {
     schemaInspector,
   });
   const statusBar = new ActiveConnectionStatusBar(activeConnection);
+  const connectionFormPanel = new ConnectionFormPanel(context.extensionUri, {
+    test: testConnection,
+    save: async (input) => {
+      const { password, ...config } = input;
+      return connectionStore.create(config, password || undefined);
+    },
+    onSaved: async (connection) => {
+      await activeConnection.set(connection.id);
+      treeProvider.refresh();
+      await statusBar.refresh();
+    },
+  });
 
   context.subscriptions.push(
     vscode.window.createTreeView(DATABASE_TREE_VIEW_ID, {
@@ -51,15 +64,9 @@ export function activate(context: vscode.ExtensionContext): void {
       showCollapseAll: true,
     }),
     statusBar,
-    registerCommand(DatabaseTreeCommandIds.addConnection, async () => {
-      const created = await promptCreateConnection(connectionStore);
-      if (!created) {
-        return;
-      }
-
-      await activeConnection.set(created.id);
-      treeProvider.refresh();
-      await statusBar.refresh();
+    connectionFormPanel,
+    registerCommand(DatabaseTreeCommandIds.addConnection, () => {
+      connectionFormPanel.show();
     }),
     registerCommand(DatabaseTreeCommandIds.refresh, async () => {
       treeProvider.refresh();
@@ -253,121 +260,6 @@ class ActiveConnectionStatusBar implements vscode.Disposable {
   public dispose(): void {
     this.item.dispose();
   }
-}
-
-async function promptCreateConnection(
-  store: ConnectionStore,
-): Promise<ConnectionConfig | undefined> {
-  const typePick = await vscode.window.showQuickPick(
-    [
-      { label: 'MySQL / MariaDB', type: 'mysql' },
-      { label: 'PostgreSQL', type: 'postgresql' },
-      { label: 'SQLite', type: 'sqlite' },
-    ] satisfies Array<vscode.QuickPickItem & { type: ConnectionType }>,
-    {
-      title: 'Add Connection',
-      placeHolder: 'Choose database type',
-      ignoreFocusOut: true,
-    },
-  );
-
-  if (!typePick || !isConnectionType(typePick.type)) {
-    return undefined;
-  }
-
-  const name = await requiredInput('Connection name');
-  if (!name) {
-    return undefined;
-  }
-
-  const group = await vscode.window.showInputBox({
-    title: 'Connection Group',
-    prompt: 'Optional. Empty connections go into Default.',
-    value: 'Default',
-    ignoreFocusOut: true,
-  });
-
-  if (typePick.type === 'sqlite') {
-    const path = await requiredInput('SQLite database file path');
-    if (!path) {
-      return undefined;
-    }
-
-    return store.create({
-      name,
-      type: typePick.type,
-      group,
-      path,
-    });
-  }
-
-  const host = await requiredInput('Host', '127.0.0.1');
-  if (!host) {
-    return undefined;
-  }
-
-  const port = await promptPort(typePick.type === 'mysql' ? 3306 : 5432);
-  if (!port) {
-    return undefined;
-  }
-
-  const database = await requiredInput('Database');
-  if (!database) {
-    return undefined;
-  }
-
-  const username = await requiredInput('Username');
-  if (!username) {
-    return undefined;
-  }
-
-  const password = await vscode.window.showInputBox({
-    title: 'Password',
-    prompt: 'Stored in VS Code SecretStorage. Leave empty for no password.',
-    password: true,
-    ignoreFocusOut: true,
-  });
-
-  return store.create(
-    {
-      name,
-      type: typePick.type,
-      group,
-      host,
-      port,
-      database,
-      username,
-    },
-    password || undefined,
-  );
-}
-
-async function requiredInput(
-  title: string,
-  value?: string,
-): Promise<string | undefined> {
-  return vscode.window.showInputBox({
-    title,
-    value,
-    ignoreFocusOut: true,
-    validateInput: (input) => input.trim() ? undefined : `${title} is required.`,
-  });
-}
-
-async function promptPort(defaultPort: number): Promise<number | undefined> {
-  const value = await vscode.window.showInputBox({
-    title: 'Port',
-    value: String(defaultPort),
-    ignoreFocusOut: true,
-    validateInput: (input) => {
-      const port = Number(input);
-      return Number.isInteger(port) && port >= 1 && port <= 65535
-        ? undefined
-        : 'Port must be an integer between 1 and 65535.';
-    },
-  });
-
-  return value ? Number(value) : undefined;
 }
 
 async function pickConnection(
