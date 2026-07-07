@@ -6,6 +6,7 @@ import {
   isConnectionType,
 } from './connection/types';
 import { registerQueryCommands } from './query/commands';
+import { createQueryRunner } from './query/runner';
 import { createSchemaInspector } from './schema/inspector';
 import { TableDetailsPanel } from './schema/tableDetailsPanel';
 import { DatabaseTreeProvider } from './tree/databaseTreeProvider';
@@ -25,7 +26,8 @@ export function activate(context: vscode.ExtensionContext): void {
     context.secrets,
   );
   const activeConnection = new ActiveConnectionState(context, connectionStore);
-  const schemaInspector = createSchemaInspector();
+  const getPassword = (connectionId: string) => connectionStore.getPassword(connectionId);
+  const schemaInspector = createSchemaInspector({ getPassword });
   const tableDetailsPanel = new TableDetailsPanel(context.extensionUri);
   const treeProvider = new DatabaseTreeProvider({
     connectionStore: {
@@ -160,6 +162,7 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }),
     ...registerQueryCommands(context, {
+      runner: createQueryRunner({ getPassword }),
       resolveConnection: async () => {
         const current = await activeConnection.get();
         if (current) {

@@ -182,11 +182,14 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
+    "@types/pg": "^8.20.0",
     "@types/vscode": "^1.90.0",
     "typescript": "^5.5.4"
   },
   "dependencies": {
     "@types/sql.js": "^1.4.11",
+    "mysql2": "^3.22.5",
+    "pg": "^8.22.0",
     "sql.js": "^1.14.1"
   }
 }
