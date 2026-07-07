@@ -1,0 +1,44 @@
+{
+  "Select statement": {
+    "prefix": "sel",
+    "body": [
+      "SELECT ${1:*}",
+      "FROM ${2:table_name}",
+      "WHERE ${3:condition}",
+      "LIMIT ${4:100};"
+    ],
+    "description": "SELECT statement with LIMIT"
+  },
+  "Insert statement": {
+    "prefix": "ins",
+    "body": [
+      "INSERT INTO ${1:table_name} (${2:columns})",
+      "VALUES (${3:values});"
+    ],
+    "description": "INSERT statement"
+  },
+  "Update statement": {
+    "prefix": "upd",
+    "body": [
+      "UPDATE ${1:table_name}",
+      "SET ${2:column} = ${3:value}",
+      "WHERE ${4:condition};"
+    ],
+    "description": "UPDATE statement with WHERE"
+  },
+  "Delete statement": {
+    "prefix": "del",
+    "body": [
+      "DELETE FROM ${1:table_name}",
+      "WHERE ${2:condition};"
+    ],
+    "description": "DELETE statement with WHERE"
+  },
+  "Join clause": {
+    "prefix": "joi",
+    "body": [
+      "JOIN ${1:table_name} ${2:alias} ON ${3:condition}"
+    ],
+    "description": "JOIN clause"
+  }
+}

@@ -1,0 +1,1210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>数据库插件路线图看板</title>
+  <style>
+    :root {
+      --paper: #f7f3ea;
+      --paper-2: #ede5d4;
+      --ink: #191714;
+      --muted: #6f675c;
+      --line: #29241d;
+      --teal: #0d9488;
+      --teal-soft: #cfeee6;
+      --red: #c2412d;
+      --red-soft: #f4d6ce;
+      --amber: #b7791f;
+      --amber-soft: #f4dfb8;
+      --green: #3f7d44;
+      --green-soft: #d6e8c6;
+      --violet: #6d4aa2;
+      --violet-soft: #dfd6f2;
+      --shadow: 0 18px 45px rgba(38, 31, 21, 0.16);
+      --radius: 8px;
+      color-scheme: light;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 320px;
+      background:
+        linear-gradient(90deg, rgba(25, 23, 20, 0.035) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(rgba(25, 23, 20, 0.025) 1px, transparent 1px) 0 0 / 24px 24px,
+        var(--paper);
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Avenir Next, Optima, Candara, Trebuchet MS, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .page {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin: -28px -28px 28px;
+      padding: 16px 28px;
+      border-bottom: 2px solid var(--line);
+      background: rgba(247, 243, 234, 0.92);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 220px;
+    }
+
+    .mark {
+      position: relative;
+      width: 38px;
+      height: 38px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--teal-soft);
+      box-shadow: 5px 5px 0 var(--line);
+      flex: 0 0 auto;
+    }
+
+    .mark::before,
+    .mark::after {
+      content: "";
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      height: 7px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--paper);
+    }
+
+    .mark::before {
+      top: 8px;
+    }
+
+    .mark::after {
+      bottom: 8px;
+    }
+
+    .brand-title {
+      margin: 0;
+      font-family: Georgia, Cambria, serif;
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .brand-subtitle {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phase-filter {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .phase-filter button {
+      min-width: max-content;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      padding: 7px 12px;
+      cursor: pointer;
+      box-shadow: 2px 2px 0 var(--line);
+      transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+    }
+
+    .phase-filter button:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    .phase-filter button.active {
+      background: var(--ink);
+      color: var(--paper);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.12fr) minmax(360px, 0.88fr);
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 22px;
+    }
+
+    .brief {
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 92% 14%, rgba(194, 65, 45, 0.22), transparent 25%),
+        linear-gradient(135deg, #fffaf0, var(--paper));
+      padding: 26px;
+      box-shadow: var(--shadow);
+      min-height: 344px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: var(--amber-soft);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 780px;
+      font-family: Georgia, Cambria, serif;
+      font-size: 54px;
+      line-height: 1.02;
+      font-weight: 900;
+    }
+
+    .hero-copy {
+      max-width: 820px;
+      margin: 18px 0 0;
+      color: #393229;
+      font-size: 18px;
+      line-height: 1.65;
+    }
+
+    .north-star {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .metric {
+      border: 2px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.55);
+    }
+
+    .metric strong {
+      display: block;
+      font-family: Georgia, Cambria, serif;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .decision-panel {
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      box-shadow: 8px 8px 0 var(--line);
+      min-height: 344px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 2px solid var(--line);
+      background: var(--red-soft);
+      font-weight: 900;
+    }
+
+    .panel-head span:last-child {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .principles {
+      display: grid;
+      gap: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      flex: 1;
+    }
+
+    .principles li {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      align-items: start;
+      padding: 16px;
+      border-bottom: 1px solid rgba(25, 23, 20, 0.16);
+    }
+
+    .principles li:last-child {
+      border-bottom: 0;
+    }
+
+    .num {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--paper);
+      font-family: Georgia, Cambria, serif;
+      font-weight: 900;
+    }
+
+    .principles b {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .principles p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .section {
+      margin-top: 26px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 0 0 14px;
+    }
+
+    .section-title h2 {
+      margin: 0;
+      font-family: Georgia, Cambria, serif;
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .section-title p {
+      max-width: 680px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: right;
+    }
+
+    .roadmap {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(190px, 1fr));
+      gap: 14px;
+      align-items: stretch;
+    }
+
+    .phase {
+      position: relative;
+      min-height: 340px;
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      box-shadow: 5px 5px 0 var(--line);
+      overflow: hidden;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .phase.dimmed {
+      opacity: 0.24;
+      transform: scale(0.985);
+    }
+
+    .phase-head {
+      padding: 14px 14px 12px;
+      border-bottom: 2px solid var(--line);
+      color: var(--ink);
+    }
+
+    .phase[data-phase="v0.1"] .phase-head {
+      background: var(--teal-soft);
+    }
+
+    .phase[data-phase="v0.2"] .phase-head {
+      background: var(--amber-soft);
+    }
+
+    .phase[data-phase="v1.0"] .phase-head {
+      background: var(--green-soft);
+    }
+
+    .phase[data-phase="v1.5"] .phase-head {
+      background: var(--violet-soft);
+    }
+
+    .phase[data-phase="v2.0"] .phase-head {
+      background: var(--red-soft);
+    }
+
+    .phase-kicker {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .phase h3 {
+      margin: 10px 0 0;
+      font-family: Georgia, Cambria, serif;
+      font-size: 24px;
+      line-height: 1.05;
+    }
+
+    .phase-body {
+      padding: 14px;
+    }
+
+    .phase-goal {
+      margin: 0 0 12px;
+      color: #3f372d;
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 58px;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--paper);
+      padding: 5px 8px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .phase-list {
+      margin: 14px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .phase-list li {
+      position: relative;
+      padding: 9px 0 9px 18px;
+      border-top: 1px dashed rgba(25, 23, 20, 0.25);
+      color: #2f2922;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .phase-list li::before {
+      content: "";
+      position: absolute;
+      left: 1px;
+      top: 15px;
+      width: 8px;
+      height: 8px;
+      border: 2px solid var(--line);
+      border-radius: 50%;
+      background: var(--teal);
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(380px, 0.95fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .matrix {
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .matrix-row {
+      display: grid;
+      grid-template-columns: 120px repeat(3, minmax(0, 1fr));
+      border-bottom: 2px solid var(--line);
+      min-height: 78px;
+    }
+
+    .matrix-row:last-child {
+      border-bottom: 0;
+    }
+
+    .matrix-cell {
+      padding: 13px;
+      border-right: 2px solid var(--line);
+      min-width: 0;
+    }
+
+    .matrix-cell:last-child {
+      border-right: 0;
+    }
+
+    .matrix-label {
+      background: var(--ink);
+      color: var(--paper);
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .matrix-cell h4 {
+      margin: 0 0 7px;
+      font-size: 14px;
+    }
+
+    .matrix-cell p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .premium-map {
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      box-shadow: 8px 8px 0 var(--line);
+      overflow: hidden;
+    }
+
+    .premium-map .panel-head {
+      background: var(--green-soft);
+    }
+
+    .unlock-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .unlock-list li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      padding: 13px 15px;
+      border-bottom: 1px solid rgba(25, 23, 20, 0.18);
+      align-items: center;
+    }
+
+    .unlock-list li:last-child {
+      border-bottom: 0;
+    }
+
+    .unlock-list b {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 14px;
+    }
+
+    .unlock-list span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 58px;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 8px;
+      background: var(--paper);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .architecture {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr 1fr;
+      gap: 16px;
+      align-items: center;
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .arch-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .arch-node {
+      border: 2px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px;
+      background: var(--paper);
+      box-shadow: 3px 3px 0 var(--line);
+    }
+
+    .arch-node strong {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+
+    .arch-node span {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .arch-core {
+      position: relative;
+      min-height: 390px;
+      border: 3px solid var(--line);
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at center, #fffdf7 0 34%, var(--teal-soft) 35% 52%, var(--amber-soft) 53% 70%, var(--red-soft) 71% 100%);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      box-shadow: inset 0 0 0 14px rgba(255, 253, 247, 0.55);
+    }
+
+    .arch-core::before,
+    .arch-core::after {
+      content: "";
+      position: absolute;
+      background: var(--line);
+    }
+
+    .arch-core::before {
+      width: 3px;
+      height: 100%;
+      left: 50%;
+      top: 0;
+    }
+
+    .arch-core::after {
+      width: 100%;
+      height: 3px;
+      left: 0;
+      top: 50%;
+    }
+
+    .core-label {
+      position: relative;
+      z-index: 1;
+      width: 180px;
+      min-height: 102px;
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      padding: 16px;
+      box-shadow: 6px 6px 0 var(--line);
+    }
+
+    .core-label strong {
+      display: block;
+      font-family: Georgia, Cambria, serif;
+      font-size: 24px;
+      line-height: 1.05;
+    }
+
+    .core-label span {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .milestones {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 10px;
+    }
+
+    .week {
+      border: 2px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      padding: 13px;
+      min-height: 136px;
+      box-shadow: 4px 4px 0 var(--line);
+    }
+
+    .week strong {
+      display: inline-flex;
+      margin-bottom: 10px;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      background: var(--amber-soft);
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .week h4 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    .week p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .note {
+      margin: 24px 0 0;
+      border-left: 6px solid var(--red);
+      background: rgba(255, 253, 247, 0.8);
+      padding: 14px 16px;
+      color: #3a3128;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 1180px) {
+      .hero,
+      .board-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .roadmap {
+        grid-template-columns: repeat(2, minmax(260px, 1fr));
+      }
+
+      .architecture {
+        grid-template-columns: 1fr;
+      }
+
+      .arch-core {
+        min-height: 300px;
+        border-radius: var(--radius);
+      }
+
+      .milestones {
+        grid-template-columns: repeat(3, minmax(180px, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .page {
+        padding: 18px;
+      }
+
+      .topbar {
+        position: static;
+        margin: -18px -18px 18px;
+        padding: 14px 18px;
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+
+      .hero-copy {
+        font-size: 15px;
+      }
+
+      .north-star {
+        grid-template-columns: 1fr;
+      }
+
+      .roadmap,
+      .milestones {
+        grid-template-columns: 1fr;
+      }
+
+      .matrix {
+        overflow-x: auto;
+      }
+
+      .matrix-row {
+        min-width: 720px;
+      }
+
+      .section-title {
+        align-items: start;
+        flex-direction: column;
+      }
+
+      .section-title p {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="topbar">
+      <div class="brand" aria-label="数据库插件路线图">
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <p class="brand-title">DB Plugin War Room</p>
+          <p class="brand-subtitle">竞品拆解 · MVP · 完整版路线图</p>
+        </div>
+      </div>
+      <nav class="phase-filter" aria-label="阶段筛选">
+        <button class="active" type="button" data-filter="all">全部</button>
+        <button type="button" data-filter="v0.1">v0.1 MVP</button>
+        <button type="button" data-filter="v0.2">v0.2 增强</button>
+        <button type="button" data-filter="v1.0">v1.0 IDE</button>
+        <button type="button" data-filter="v1.5">v1.5 高级</button>
+        <button type="button" data-filter="v2.0">v2.0 全栈</button>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <div class="brief">
+        <div class="eyebrow">策略：Premium 能力免费化，本地优先</div>
+        <h1>先做一个能天天用的数据库插件，再扩成一站式数据工作台。</h1>
+        <p class="hero-copy">
+          路线图不以“支持 40+ 数据源”为第一目标，而以真实开发路径推进：
+          连接、Schema、SQL、结果表格先稳定；再补导出、编辑、Hover、变量；最后进入 ER、Mock、结构对比、SSH、Service 面板。
+        </p>
+        <div class="north-star">
+          <div class="metric">
+            <strong>80%</strong>
+            <span>MVP 覆盖日常查库、跑 SQL、看结果、导出数据</span>
+          </div>
+          <div class="metric">
+            <strong>0</strong>
+            <span>连接数量限制。竞品付费墙能力按阶段免费实现</span>
+          </div>
+          <div class="metric">
+            <strong>Local</strong>
+            <span>密码进 SecretStorage，默认不上传、不注册、不遥测</span>
+          </div>
+        </div>
+      </div>
+
+      <aside class="decision-panel">
+        <div class="panel-head">
+          <span>产品决策原则</span>
+          <span>Decision Rules</span>
+        </div>
+        <ol class="principles">
+          <li>
+            <span class="num">1</span>
+            <div>
+              <b>先做窄，但要闭环</b>
+              <p>v0.1 只做 MySQL / PostgreSQL / SQLite，但连接、Schema、SQL、结果、历史必须能顺畅串起来。</p>
+            </div>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <div>
+              <b>免费替代 Premium 高频点</b>
+              <p>无限连接、CSV/JSON 导出、JSON 结果、Workspace 连接、DDL Hover 是 v0.2 的优先收益点。</p>
+            </div>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <div>
+              <b>安全默认值不可让步</b>
+              <p>敏感信息不进明文配置，危险 SQL 需要确认，AI 执行查询必须由用户触发。</p>
+            </div>
+          </li>
+          <li>
+            <span class="num">4</span>
+            <div>
+              <b>Service 面板延后</b>
+              <p>Redis、MongoDB、SSH、Docker 价值高，但会分散主线。先把数据库 IDE 做扎实。</p>
+            </div>
+          </li>
+        </ol>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="roadmap-title">
+      <div class="section-title">
+        <h2 id="roadmap-title">阶段路线图</h2>
+        <p>从左到右是功能成熟度，而不是简单版本号。点击顶部阶段按钮可以聚焦单个阶段。</p>
+      </div>
+      <div class="roadmap">
+        <article class="phase" data-phase="v0.1">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v0.1</span><span>第 1-6 周</span></div>
+            <h3>MVP 查询闭环</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">让用户可以卸载普通 SQL 查询插件，用我们完成日常查库工作。</p>
+            <div class="chips">
+              <span class="chip">MySQL</span>
+              <span class="chip">PostgreSQL</span>
+              <span class="chip">SQLite</span>
+            </div>
+            <ul class="phase-list">
+              <li>Activity Bar + Database TreeView</li>
+              <li>连接 CRUD、分组、本地持久化、无限连接</li>
+              <li>Schema 树：库、Schema、表、视图、列</li>
+              <li>点击 Table 右侧显示列信息，左侧展开 Table 显示列</li>
+              <li>结果表格与列信息只读，所有修改必须通过 SQL</li>
+              <li>SQL 写在 VS Code 原生 .sql 编辑器中</li>
+              <li>状态栏显示并切换当前连接，QuickPick 标注 Current</li>
+              <li>执行当前语句 / 选区 / 全部语句</li>
+              <li>结果 Webview：分页、错误、耗时、影响行数</li>
+              <li>基础 SQL 提示：关键字、片段、表名、字段名</li>
+              <li>查询历史与危险 SQL 二次确认</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="phase" data-phase="v0.2">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v0.2</span><span>增强版</span></div>
+            <h3>免费化高频 Premium</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">把竞品最容易让用户付费的效率点，变成我们的默认体验。</p>
+            <div class="chips">
+              <span class="chip">导出</span>
+              <span class="chip">编辑</span>
+              <span class="chip">Hover</span>
+            </div>
+            <ul class="phase-list">
+              <li>CSV / JSON 导出，支持当前页与全量结果</li>
+              <li>JSON 结果模式与长文本弹窗</li>
+              <li>主键识别、行内编辑、保存和回滚</li>
+              <li>SQL 变量：执行时输入与工作区配置</li>
+              <li>Workspace 级连接配置 + SecretStorage</li>
+              <li>DDL Hover 简版与 CodeLens Run 增强</li>
+              <li>跨窗口恢复连接绑定，移动文件后提示重绑</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="phase" data-phase="v1.0">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v1.0</span><span>Database IDE</span></div>
+            <h3>传统客户端替代</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">覆盖表结构、测试数据、备份导入，把插件从查询器升级为数据库 IDE。</p>
+            <div class="chips">
+              <span class="chip">表设计</span>
+              <span class="chip">ER</span>
+              <span class="chip">Mock</span>
+            </div>
+            <ul class="phase-list">
+              <li>表设计器：列、索引、主键、外键</li>
+              <li>DDL 预览，确认后执行</li>
+              <li>ER 图基础版：外键关系、自动布局、跳转</li>
+              <li>Mock 数据生成，按列类型推荐规则</li>
+              <li>调用 mysqldump / pg_dump 做备份恢复</li>
+              <li>SQL Server、DuckDB、ClickHouse、Redis 基础管理</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="phase" data-phase="v1.5">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v1.5</span><span>Advanced</span></div>
+            <h3>高级生产力</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">面向复杂环境、迁移、跳板机和 AI 辅助，把生产场景补齐。</p>
+            <div class="chips">
+              <span class="chip">结构对比</span>
+              <span class="chip">SSH Tunnel</span>
+              <span class="chip">AI</span>
+            </div>
+            <ul class="phase-list">
+              <li>完整 DDL Hover 与跳转定义</li>
+              <li>ER 图导出图片，Schema 文档生成</li>
+              <li>结构对比：生成迁移 SQL，默认不自动执行</li>
+              <li>SSH 隧道、本地端口自动分配与释放</li>
+              <li>HTTP / SOCKS 代理</li>
+              <li>MongoDB 基础管理，AI 助手只读版</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="phase" data-phase="v2.0">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v2.0</span><span>Full Stack</span></div>
+            <h3>全栈 Service 面板</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">追赶竞品一站式运维工作台，但保持模块边界，避免拖慢核心查询体验。</p>
+            <div class="chips">
+              <span class="chip">SSH</span>
+              <span class="chip">Docker</span>
+              <span class="chip">Kafka</span>
+            </div>
+            <ul class="phase-list">
+              <li>Service 面板：Redis、MongoDB、ES、Kafka、RabbitMQ</li>
+              <li>SSH 终端、SFTP 文件树、上传下载、自动同步</li>
+              <li>Docker：容器、日志、exec shell、stats</li>
+              <li>ElasticSearch DSL 查询与 Mapping 管理</li>
+              <li>Kafka Topic / Consumer Group / 消息生产消费</li>
+              <li>加密导出包与用户自有 S3 / WebDAV 同步</li>
+            </ul>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>优先级矩阵</h2>
+        <p>把“必须先做什么”和“诱人的但应该后做什么”分开，防止路线图被全家桶拖散。</p>
+      </div>
+      <div class="board-grid">
+        <div class="matrix" aria-label="优先级矩阵">
+          <div class="matrix-row">
+            <div class="matrix-cell matrix-label">P0<br />MVP 骨架</div>
+            <div class="matrix-cell">
+              <h4>Extension Shell</h4>
+              <p>Activity Bar、TreeView、commands、settings、SQL language。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>Connection + Driver</h4>
+              <p>连接存储、SecretStorage、MySQL / PostgreSQL / SQLite。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>SQL Runner + Result</h4>
+              <p>状态栏连接切换、执行语句、分页表格、错误状态、历史记录。</p>
+            </div>
+          </div>
+          <div class="matrix-row">
+            <div class="matrix-cell matrix-label">P1<br />高频收益</div>
+            <div class="matrix-cell">
+              <h4>Editable Grid</h4>
+              <p>主键识别、行内编辑、保存与回滚。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>Export</h4>
+              <p>CSV / JSON 导出，优先免费替代竞品 Premium。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>Workspace Config</h4>
+              <p>团队可共享连接模板，敏感字段仍走本地密钥。</p>
+            </div>
+          </div>
+          <div class="matrix-row">
+            <div class="matrix-cell matrix-label">P2<br />IDE 化</div>
+            <div class="matrix-cell">
+              <h4>Table Designer</h4>
+              <p>列、索引、外键、DDL 预览，先覆盖 MySQL / PostgreSQL。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>ER + Mock</h4>
+              <p>理解库结构、生成测试数据，增强迁移与开发效率。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>Backup</h4>
+              <p>调用系统 CLI，保留透明日志，避免黑箱备份。</p>
+            </div>
+          </div>
+          <div class="matrix-row">
+            <div class="matrix-cell matrix-label">P3<br />全栈扩展</div>
+            <div class="matrix-cell">
+              <h4>Service Panel</h4>
+              <p>Redis、MongoDB、ElasticSearch、Kafka、RabbitMQ。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>Remote Ops</h4>
+              <p>SSH、SFTP、端口转发、Docker。</p>
+            </div>
+            <div class="matrix-cell">
+              <h4>AI + Sync</h4>
+              <p>AI 只读优先；同步使用本地加密与用户自有存储。</p>
+            </div>
+          </div>
+        </div>
+
+        <aside class="premium-map">
+          <div class="panel-head">
+            <span>竞品 Premium → 我们免费实现</span>
+            <span>Unlock Plan</span>
+          </div>
+          <ul class="unlock-list">
+            <li>
+              <div><b>无限连接</b><span>竞品限制每面板 3 个连接；我们 v0.1 默认无限。</span></div>
+              <span class="tag">v0.1</span>
+            </li>
+            <li>
+              <div><b>CSV / JSON 导出、JSON 视图</b><span>最常用的排查与交付能力，v0.2 免费。</span></div>
+              <span class="tag">v0.2</span>
+            </li>
+            <li>
+              <div><b>Workspace 连接、DDL Hover</b><span>团队协作和 SQL 阅读效率，v0.2 起步。</span></div>
+              <span class="tag">v0.2</span>
+            </li>
+            <li>
+              <div><b>ER 图、Mock 数据</b><span>开发生产力增强，v1.0 进入主线。</span></div>
+              <span class="tag">v1.0</span>
+            </li>
+            <li>
+              <div><b>结构对比、代理、SSH 隧道</b><span>复杂生产环境能力，v1.5 做得稳再放出。</span></div>
+              <span class="tag">v1.5</span>
+            </li>
+            <li>
+              <div><b>SFTP 自动同步、Docker、Kafka</b><span>重型全栈能力，放入 v2.0 Service 面板。</span></div>
+              <span class="tag">v2.0</span>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>推荐架构图</h2>
+        <p>核心是 Extension Host 中的能力编排，Driver 适配层和 Webview UI 解耦。数据、密钥和执行链路都要可审计。</p>
+      </div>
+      <div class="architecture" aria-label="推荐架构图">
+        <div class="arch-stack">
+          <div class="arch-node">
+            <strong>VS Code Contributions</strong>
+            <span>Activity Bar、TreeView、Commands、SQL Language、Snippets、Settings。</span>
+          </div>
+          <div class="arch-node">
+            <strong>Connection Store</strong>
+            <span>globalState / workspace config 保存非敏感字段，SecretStorage 保存密码、token、私钥。</span>
+          </div>
+          <div class="arch-node">
+            <strong>Safety Layer</strong>
+            <span>危险 SQL 确认、生产连接标识、AI 执行确认、查询日志。</span>
+          </div>
+        </div>
+
+        <div class="arch-core">
+          <div class="core-label">
+            <strong>Extension Host</strong>
+            <span>Service Manager · Driver Registry · Query Runner · Metadata Cache</span>
+          </div>
+        </div>
+
+        <div class="arch-stack">
+          <div class="arch-node">
+            <strong>Driver Adapters</strong>
+            <span>mysql2、pg、SQLite、tedious、ioredis、mongodb、ssh2，以统一接口暴露能力。</span>
+          </div>
+          <div class="arch-node">
+            <strong>Webview Apps</strong>
+            <span>Result Grid、Table Designer、ER Diagram、Mock Generator、Manager Dashboard。</span>
+          </div>
+          <div class="arch-node">
+            <strong>External Tools</strong>
+            <span>mysqldump、pg_dump、docker、ssh tunnel、用户自有 S3 / WebDAV 同步。</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title">
+        <h2>6 周 MVP 里程碑</h2>
+        <p>这条线只服务 v0.1，不被 ER、SSH、Docker 等后续能力干扰。</p>
+      </div>
+      <div class="milestones">
+        <div class="week">
+          <strong>Week 1</strong>
+          <h4>扩展外壳</h4>
+          <p>Activity Bar、TreeView、命令注册、设置项，能显示空连接树。</p>
+        </div>
+        <div class="week">
+          <strong>Week 2</strong>
+          <h4>连接管理</h4>
+          <p>新增、编辑、删除连接；SecretStorage；连接测试。</p>
+        </div>
+        <div class="week">
+          <strong>Week 3</strong>
+          <h4>Schema Explorer</h4>
+          <p>展开库、Schema、表、视图、列，支持刷新元数据缓存。</p>
+        </div>
+        <div class="week">
+            <strong>Week 4</strong>
+            <h4>SQL Runner</h4>
+          <p>打开 Query，状态栏切换连接，执行选区/当前/全部语句，记录历史和错误。</p>
+        </div>
+        <div class="week">
+          <strong>Week 5</strong>
+          <h4>Result Grid</h4>
+          <p>分页表格、复制、执行耗时、影响行数、默认 LIMIT。</p>
+        </div>
+        <div class="week">
+          <strong>Week 6</strong>
+          <h4>MVP 验收</h4>
+          <p>真实数据库完成连接、查表、查询、复制、历史回放。</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="note">
+      验收口径：v0.1 不是“功能最多”，而是“最小闭环足够稳”。当用户能在真实项目里用它完成 80% 日常查库工作，再进入 v0.2 的 Premium 免费化增强。
+    </p>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll("[data-filter]"));
+    const phases = Array.from(document.querySelectorAll("[data-phase]"));
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const filter = button.dataset.filter;
+        buttons.forEach((item) => item.classList.toggle("active", item === button));
+        phases.forEach((phase) => {
+          phase.classList.toggle("dimmed", filter !== "all" && phase.dataset.phase !== filter);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

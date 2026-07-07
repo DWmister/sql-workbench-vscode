@@ -1,0 +1,1764 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MVP 数据库插件产品原型</title>
+  <style>
+    :root {
+      --workbench: #181c20;
+      --activity: #101317;
+      --side: #171b20;
+      --side-2: #1d2229;
+      --editor: #1f2329;
+      --editor-2: #242932;
+      --panel: #191e24;
+      --panel-2: #20262e;
+      --line: #303742;
+      --line-soft: #262c35;
+      --text: #d7dde7;
+      --text-strong: #f5f7fb;
+      --muted: #8f9aa8;
+      --muted-2: #687483;
+      --accent: #4cc2ff;
+      --accent-2: #7dd3a8;
+      --warn: #f0b35a;
+      --danger: #ef7f74;
+      --purple: #c59cff;
+      --blue-soft: rgba(76, 194, 255, 0.13);
+      --green-soft: rgba(125, 211, 168, 0.14);
+      --status: #0f6f55;
+      --shadow: 0 22px 70px rgba(0, 0, 0, 0.42);
+      --mono: "SFMono-Regular", "Cascadia Code", "Menlo", "Consolas", monospace;
+      --ui: "Avenir Next", "Segoe UI", "Helvetica Neue", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at 15% 8%, rgba(76, 194, 255, 0.18), transparent 28%),
+        radial-gradient(circle at 88% 18%, rgba(125, 211, 168, 0.14), transparent 24%),
+        linear-gradient(135deg, #0d1014 0%, #171b20 55%, #101317 100%);
+      color: var(--text);
+      font-family: var(--ui);
+      letter-spacing: 0;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    .prototype-shell {
+      min-height: 100vh;
+      padding: 24px;
+      display: grid;
+      place-items: center;
+    }
+
+    .vscode-frame {
+      width: min(1480px, calc(100vw - 48px));
+      height: min(940px, calc(100vh - 48px));
+      min-height: 760px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      background: var(--workbench);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: grid;
+      grid-template-rows: 34px 1fr 24px;
+    }
+
+    .titlebar {
+      display: grid;
+      grid-template-columns: 110px 1fr 220px;
+      align-items: center;
+      background: #11151a;
+      border-bottom: 1px solid #252b33;
+      padding: 0 12px;
+      user-select: none;
+    }
+
+    .traffic {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot.red { background: #ff5f57; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #28c840; }
+
+    .window-title {
+      justify-self: center;
+      color: #aeb7c4;
+      font-size: 12px;
+    }
+
+    .title-actions {
+      justify-self: end;
+      display: flex;
+      gap: 8px;
+      color: var(--muted-2);
+    }
+
+    .app {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 52px 306px minmax(0, 1fr);
+    }
+
+    .activitybar {
+      background: var(--activity);
+      border-right: 1px solid #252b33;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 8px;
+    }
+
+    .activity-spacer {
+      flex: 1;
+    }
+
+    .icon-button {
+      width: 36px;
+      height: 36px;
+      border: 0;
+      border-radius: 7px;
+      display: grid;
+      place-items: center;
+      background: transparent;
+      color: #8994a4;
+      cursor: pointer;
+      position: relative;
+      transition: background 130ms ease, color 130ms ease;
+    }
+
+    .icon-button:hover,
+    .icon-button.active {
+      background: #20262e;
+      color: var(--text-strong);
+    }
+
+    .icon-button.active::before {
+      content: "";
+      position: absolute;
+      left: -8px;
+      top: 7px;
+      width: 3px;
+      height: 22px;
+      border-radius: 0 3px 3px 0;
+      background: var(--accent);
+    }
+
+    .activity-badge {
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      background: #3377ff;
+      color: white;
+      font-size: 10px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--activity);
+    }
+
+    .sidebar {
+      min-width: 0;
+      background: var(--side);
+      border-right: 1px solid #252b33;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+    }
+
+    .sidebar-title {
+      height: 42px;
+      padding: 0 12px 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #b9c2ce;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .sidebar-actions {
+      display: flex;
+      gap: 2px;
+    }
+
+    .small-button {
+      width: 26px;
+      height: 26px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: #8994a4;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+    }
+
+    .small-button:hover {
+      background: #252b33;
+      color: var(--text-strong);
+    }
+
+    .connection-search {
+      padding: 0 10px 10px;
+    }
+
+    .connection-search label {
+      display: block;
+      position: relative;
+    }
+
+    .connection-search svg {
+      position: absolute;
+      left: 9px;
+      top: 8px;
+      color: var(--muted-2);
+    }
+
+    .connection-search input {
+      width: 100%;
+      height: 32px;
+      border: 1px solid #2d3540;
+      border-radius: 6px;
+      background: #11161c;
+      color: var(--text);
+      padding: 0 10px 0 34px;
+      outline: none;
+      font-size: 12px;
+    }
+
+    .connection-search input:focus {
+      border-color: #377fa5;
+      box-shadow: 0 0 0 2px rgba(76, 194, 255, 0.14);
+    }
+
+    .tree {
+      min-height: 0;
+      overflow: auto;
+      padding: 2px 0 12px;
+    }
+
+    .tree-section {
+      margin-bottom: 6px;
+    }
+
+    .tree-row {
+      min-height: 26px;
+      display: grid;
+      grid-template-columns: 18px 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 4px;
+      padding: 0 9px 0 9px;
+      color: #c5ceda;
+      font-size: 13px;
+      cursor: default;
+    }
+
+    .tree-row:hover {
+      background: #222832;
+    }
+
+    .tree-row.selected {
+      background: #27313d;
+      color: var(--text-strong);
+    }
+
+    .tree-row.nested-1 {
+      padding-left: 26px;
+    }
+
+    .tree-row.nested-2 {
+      padding-left: 46px;
+    }
+
+    .tree-row.nested-3 {
+      padding-left: 66px;
+    }
+
+    .tree-row.nested-4 {
+      padding-left: 86px;
+    }
+
+    .tree-row.nested-5 {
+      padding-left: 106px;
+    }
+
+    .tree-row.clickable {
+      cursor: pointer;
+    }
+
+    .tree-row .label {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .chevron {
+      color: #8793a1;
+      display: grid;
+      place-items: center;
+    }
+
+    .db-icon {
+      color: var(--accent);
+    }
+
+    .folder-icon {
+      color: #d3ad5f;
+    }
+
+    .schema-icon {
+      color: #a6d391;
+    }
+
+    .table-icon {
+      color: #b9a6ff;
+    }
+
+    .column-icon {
+      color: #5ebdff;
+    }
+
+    .key-icon {
+      color: #f0b35a;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--muted-2);
+      font-size: 11px;
+      padding-left: 4px;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-2);
+      box-shadow: 0 0 0 2px rgba(125, 211, 168, 0.08);
+    }
+
+    .status-dot.closed {
+      background: #6e7784;
+    }
+
+    .main {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 38px minmax(0, 1.04fr) minmax(260px, 0.72fr);
+      background: var(--editor);
+    }
+
+    .tabs {
+      height: 38px;
+      display: flex;
+      align-items: end;
+      background: #181d23;
+      border-bottom: 1px solid #252b33;
+      overflow: hidden;
+    }
+
+    .tab {
+      height: 37px;
+      min-width: 162px;
+      max-width: 240px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-right: 1px solid #2a3038;
+      background: #20262e;
+      color: #cbd3df;
+      font-size: 13px;
+    }
+
+    .tab.active {
+      background: var(--editor);
+      color: var(--text-strong);
+      border-top: 1px solid var(--accent);
+    }
+
+    .tab {
+      cursor: pointer;
+    }
+
+    .tab .dirty {
+      margin-left: auto;
+      color: #78d296;
+      font-size: 12px;
+    }
+
+    .editor-wrap {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 34px 1fr;
+      background: var(--editor);
+    }
+
+    .main.table-mode {
+      grid-template-rows: 38px minmax(0, 1fr);
+    }
+
+    .main.table-mode .editor-wrap,
+    .main.table-mode .panel-wrap {
+      display: none;
+    }
+
+    .table-detail-view {
+      display: none;
+      min-height: 0;
+      background: var(--editor);
+      grid-template-rows: auto 1fr;
+    }
+
+    .main.table-mode .table-detail-view {
+      display: grid;
+    }
+
+    .table-meta {
+      border-bottom: 1px solid var(--line);
+      background: #1c222a;
+    }
+
+    .table-meta-top {
+      min-height: 88px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 20px;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .table-title-block {
+      min-width: 0;
+    }
+
+    .table-kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 7px;
+    }
+
+    .table-title-block h2 {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-strong);
+      font-size: 22px;
+      line-height: 1.1;
+    }
+
+    .table-title-block p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .table-meta-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: end;
+    }
+
+    .meta-button {
+      height: 30px;
+      border: 1px solid #3a4451;
+      border-radius: 6px;
+      background: #242b35;
+      color: #d8e1ec;
+      padding: 0 10px;
+      display: inline-grid;
+      grid-auto-flow: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .meta-button:hover {
+      border-color: #4cc2ff;
+      background: #29313d;
+    }
+
+    .readonly-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 34px;
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--line-soft);
+      background: rgba(240, 179, 90, 0.09);
+      color: #d8c6a6;
+      font-size: 12px;
+    }
+
+    .readonly-banner strong {
+      color: #f0d49b;
+    }
+
+    .readonly-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 24px;
+      border: 1px solid rgba(240, 179, 90, 0.38);
+      border-radius: 999px;
+      padding: 0 9px;
+      color: #f0d49b;
+      white-space: nowrap;
+    }
+
+    .table-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line-soft);
+    }
+
+    .meta-field {
+      min-width: 0;
+      padding: 10px 14px;
+      background: #1b2027;
+    }
+
+    .meta-field span {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--muted-2);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .meta-field strong {
+      display: block;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #d9e2ec;
+      font-size: 13px;
+    }
+
+    .columns-view {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 38px 1fr;
+    }
+
+    .columns-tabs {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #181d23;
+      color: #aab4c0;
+      font-size: 12px;
+    }
+
+    .columns-tab {
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      border-bottom: 2px solid transparent;
+    }
+
+    .columns-tab.active {
+      color: var(--text-strong);
+      border-bottom-color: var(--accent);
+    }
+
+    .columns-grid {
+      min-height: 0;
+      overflow: auto;
+      font-size: 12px;
+    }
+
+    .columns-grid table {
+      min-width: 1080px;
+    }
+
+    .columns-grid th,
+    .columns-grid td {
+      height: 34px;
+    }
+
+    .check-cell {
+      text-align: center;
+      color: var(--accent-2);
+    }
+
+    .empty-cell {
+      color: #4f5b69;
+    }
+
+    .editor-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line-soft);
+      background: #1d2229;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      color: #98a5b4;
+      font-size: 12px;
+    }
+
+    .breadcrumbs span {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .query-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-button {
+      height: 26px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: #99a6b6;
+      display: inline-grid;
+      grid-auto-flow: column;
+      align-items: center;
+      gap: 6px;
+      padding: 0 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .tool-button:hover {
+      background: #29313b;
+      color: var(--text-strong);
+    }
+
+    .tool-button.primary {
+      color: #9ff1ba;
+    }
+
+    .code-area {
+      min-height: 0;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 13px;
+      line-height: 23px;
+      background:
+        linear-gradient(90deg, rgba(76, 194, 255, 0.06) 0 52px, transparent 52px),
+        var(--editor);
+    }
+
+    .code-line {
+      display: grid;
+      grid-template-columns: 48px minmax(780px, 1fr);
+      min-height: 23px;
+    }
+
+    .ln {
+      color: #626d7c;
+      text-align: right;
+      padding-right: 14px;
+      user-select: none;
+    }
+
+    .sql {
+      white-space: pre;
+      padding-left: 10px;
+      color: #d5dde8;
+    }
+
+    .kw { color: #cc9bff; font-weight: 700; }
+    .fn { color: #7bdcff; }
+    .id { color: #f4c16e; }
+    .str { color: #a6e38d; }
+    .num { color: #ffb57d; }
+    .cm { color: #6f7c8d; font-style: italic; }
+    .op { color: #ff8bb3; }
+
+    .active-selection .sql {
+      background: linear-gradient(90deg, rgba(76, 194, 255, 0.16), rgba(76, 194, 255, 0.05));
+    }
+
+    .suggest-widget {
+      position: absolute;
+      left: 608px;
+      top: 251px;
+      width: 322px;
+      border: 1px solid #3b4653;
+      border-radius: 7px;
+      background: #20262e;
+      box-shadow: 0 16px 45px rgba(0, 0, 0, 0.38);
+      overflow: hidden;
+      font-size: 12px;
+      z-index: 2;
+    }
+
+    .suggest-title {
+      padding: 7px 10px;
+      color: #aab4c0;
+      background: #1a1f26;
+      border-bottom: 1px solid #323a45;
+    }
+
+    .suggest-row {
+      display: grid;
+      grid-template-columns: 18px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      color: #dbe2ec;
+    }
+
+    .suggest-row.active {
+      background: #314050;
+    }
+
+    .suggest-row .kind {
+      color: #8793a1;
+      font-size: 11px;
+    }
+
+    .panel-wrap {
+      min-height: 0;
+      border-top: 1px solid #2b333e;
+      background: var(--panel);
+      display: grid;
+      grid-template-rows: 36px 1fr;
+    }
+
+    .panel-tabs {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      background: #181d23;
+      border-bottom: 1px solid #252b33;
+    }
+
+    .panel-tab-list {
+      display: flex;
+      align-items: center;
+      height: 100%;
+    }
+
+    .panel-tab {
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 10px;
+      border-right: 1px solid #2b323c;
+      color: #aeb8c6;
+      font-size: 12px;
+    }
+
+    .panel-tab.active {
+      color: var(--text-strong);
+      background: var(--panel);
+      border-top: 1px solid var(--accent-2);
+    }
+
+    .panel-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-body {
+      min-height: 0;
+      display: grid;
+      grid-template-rows: 38px 1fr;
+    }
+
+    .result-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border-bottom: 1px solid #27303a;
+      background: #1c222a;
+    }
+
+    .result-left,
+    .result-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .searchbox {
+      position: relative;
+      width: 230px;
+      flex: 0 1 auto;
+    }
+
+    .searchbox svg {
+      position: absolute;
+      left: 9px;
+      top: 7px;
+      color: var(--muted-2);
+    }
+
+    .searchbox input {
+      width: 100%;
+      height: 28px;
+      border: 1px solid #313a45;
+      border-radius: 6px;
+      background: #12171d;
+      color: var(--text);
+      padding: 0 9px 0 32px;
+      outline: none;
+      font-size: 12px;
+    }
+
+    .elapsed {
+      color: #aab4c0;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .result-grid {
+      min-height: 0;
+      overflow: auto;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: #cdd6e2;
+    }
+
+    table {
+      border-collapse: collapse;
+      min-width: 920px;
+      width: 100%;
+    }
+
+    th,
+    td {
+      height: 32px;
+      border-right: 1px solid #2b333d;
+      border-bottom: 1px solid #272e38;
+      padding: 0 12px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #20262e;
+      color: #dfe6ef;
+      font-weight: 700;
+      vertical-align: bottom;
+    }
+
+    th .type {
+      display: block;
+      margin-top: 2px;
+      color: #7e8a99;
+      font-weight: 500;
+      font-size: 11px;
+    }
+
+    tbody tr:hover {
+      background: rgba(76, 194, 255, 0.07);
+    }
+
+    .row-expander {
+      width: 38px;
+      color: #7c8795;
+    }
+
+    .statusbar {
+      display: grid;
+      grid-template-columns: auto auto auto 1fr auto auto auto;
+      align-items: center;
+      gap: 0;
+      height: 24px;
+      background: var(--status);
+      color: #e7fff4;
+      font-size: 12px;
+      user-select: none;
+    }
+
+    .status-item {
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 9px;
+      border-right: 1px solid rgba(255, 255, 255, 0.12);
+      white-space: nowrap;
+    }
+
+    .status-item.clickable {
+      cursor: pointer;
+    }
+
+    .status-item.clickable:hover {
+      background: rgba(255, 255, 255, 0.13);
+    }
+
+    .status-fill {
+      min-width: 0;
+    }
+
+    .quickpick-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: none;
+      background: rgba(0, 0, 0, 0.24);
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 72px;
+    }
+
+    .quickpick-backdrop.open {
+      display: flex;
+    }
+
+    .quickpick {
+      width: min(650px, calc(100vw - 40px));
+      border: 1px solid #3b4653;
+      border-radius: 8px;
+      background: #20262e;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      overflow: hidden;
+      animation: pickIn 120ms ease-out;
+    }
+
+    @keyframes pickIn {
+      from { opacity: 0; transform: translateY(-8px) scale(.985); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .quickpick-title {
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #373d46;
+      color: #d9e0ea;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .quickpick-search {
+      padding: 8px;
+      border-bottom: 1px solid #323a45;
+    }
+
+    .quickpick-search input {
+      width: 100%;
+      height: 30px;
+      border: 1px solid #4a5563;
+      border-radius: 5px;
+      background: #1a1f26;
+      color: var(--text);
+      padding: 0 10px;
+      outline: none;
+    }
+
+    .pick-list {
+      max-height: 320px;
+      overflow: auto;
+      padding: 4px 0;
+    }
+
+    .pick-item {
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      gap: 8px;
+      align-items: center;
+      min-height: 31px;
+      padding: 5px 10px;
+      color: #d8e0eb;
+      cursor: pointer;
+    }
+
+    .pick-item:hover,
+    .pick-item.active {
+      background: #334052;
+    }
+
+    .pick-name {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .pick-name strong {
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-size: 13px;
+    }
+
+    .pick-name span {
+      color: #8c97a5;
+      font-size: 12px;
+    }
+
+    .current-label {
+      grid-column: 1 / -1;
+      padding-left: 24px;
+      color: #a3adbb;
+      font-size: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 38px;
+      bottom: 48px;
+      z-index: 25;
+      min-width: 280px;
+      border: 1px solid #3b4653;
+      border-radius: 8px;
+      background: #20262e;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
+      padding: 12px 14px;
+      color: #dce4ee;
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(10px);
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 1100px) {
+      .prototype-shell {
+        padding: 12px;
+      }
+
+      .vscode-frame {
+        width: calc(100vw - 24px);
+        height: calc(100vh - 24px);
+        min-height: 720px;
+      }
+
+      .app {
+        grid-template-columns: 48px 274px minmax(0, 1fr);
+      }
+
+      .suggest-widget {
+        left: 520px;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .vscode-frame {
+        min-height: 860px;
+      }
+
+      .app {
+        grid-template-columns: 46px minmax(0, 1fr);
+      }
+
+      .sidebar {
+        display: none;
+      }
+
+      .main {
+        grid-column: 2;
+      }
+
+      .titlebar {
+        grid-template-columns: 82px 1fr 120px;
+      }
+
+      .window-title {
+        font-size: 11px;
+      }
+
+      .main {
+        grid-template-rows: 38px minmax(0, .96fr) minmax(330px, .86fr);
+      }
+
+      .suggest-widget {
+        display: none;
+      }
+
+      .statusbar {
+        grid-template-columns: auto auto 1fr auto;
+      }
+
+      .hide-sm {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="prototype-shell">
+    <div class="vscode-frame" role="application" aria-label="数据库插件 MVP 原型">
+      <header class="titlebar">
+        <div class="traffic" aria-hidden="true">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <div class="window-title">cyy-bff-node - Visual Studio Code</div>
+        <div class="title-actions">
+          <i data-lucide="minus" width="14" height="14"></i>
+          <i data-lucide="square" width="13" height="13"></i>
+          <i data-lucide="x" width="14" height="14"></i>
+        </div>
+      </header>
+
+      <div class="app">
+        <nav class="activitybar" aria-label="Activity Bar">
+          <button class="icon-button" aria-label="资源管理器"><i data-lucide="files" width="22" height="22"></i></button>
+          <button class="icon-button" aria-label="搜索"><i data-lucide="search" width="22" height="22"></i></button>
+          <button class="icon-button" aria-label="源代码管理"><i data-lucide="git-branch" width="22" height="22"></i><span class="activity-badge">3</span></button>
+          <button class="icon-button" aria-label="运行和调试"><i data-lucide="bug" width="22" height="22"></i></button>
+          <button class="icon-button active" aria-label="数据库"><i data-lucide="database" width="22" height="22"></i></button>
+          <div class="activity-spacer"></div>
+          <button class="icon-button" aria-label="账户"><i data-lucide="circle-user-round" width="22" height="22"></i></button>
+          <button class="icon-button" aria-label="设置"><i data-lucide="settings" width="22" height="22"></i></button>
+        </nav>
+
+        <aside class="sidebar" aria-label="Database Sidebar">
+          <div class="sidebar-title">
+            <span>Database</span>
+            <div class="sidebar-actions">
+              <button class="small-button" aria-label="新增连接"><i data-lucide="plus" width="16" height="16"></i></button>
+              <button class="small-button" aria-label="新增分组"><i data-lucide="folder-plus" width="16" height="16"></i></button>
+              <button class="small-button" aria-label="刷新"><i data-lucide="refresh-cw" width="15" height="15"></i></button>
+              <button class="small-button" aria-label="设置"><i data-lucide="settings" width="15" height="15"></i></button>
+            </div>
+          </div>
+
+          <div class="connection-search">
+            <label>
+              <i data-lucide="search" width="15" height="15"></i>
+              <input value="" placeholder="Filter connections, tables..." aria-label="过滤连接和表" />
+            </label>
+          </div>
+
+          <div class="tree" aria-label="连接分组树">
+            <section class="tree-section">
+              <div class="tree-row">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="folder-icon"><i data-lucide="folder" width="15" height="15"></i></span>
+                <span class="label"><strong>sr</strong></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-1">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="db-icon"><i data-lucide="database-zap" width="15" height="15"></i></span>
+                <span class="label">qa 5.1.0</span>
+                <span class="status-pill"><span class="status-dot"></span>active</span>
+              </div>
+              <div class="tree-row nested-2">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="schema-icon"><i data-lucide="box" width="15" height="15"></i></span>
+                <span class="label">bi_dwd</span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-3">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="folder-icon"><i data-lucide="folder" width="15" height="15"></i></span>
+                <span class="label">Query</span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-3">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="folder-icon"><i data-lucide="list-tree" width="15" height="15"></i></span>
+                <span class="label">Tables <span style="color:#7b8796">(48)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-4">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="table-icon"><i data-lucide="table-2" width="15" height="15"></i></span>
+                <span class="label">biz_show</span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-4 clickable selected" id="treeBizUser">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="table-icon"><i data-lucide="table-2" width="15" height="15"></i></span>
+                <span class="label">biz_user</span>
+                <span class="status-pill">12</span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="key-icon"><i data-lucide="key-round" width="14" height="14"></i></span>
+                <span class="label">id <span style="color:#7f8b9a">char(40)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">biz_code <span style="color:#7f8b9a">varchar(20)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">sub_biz_code <span style="color:#7f8b9a">varchar(32)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">status <span style="color:#7f8b9a">varchar(10)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">source <span style="color:#7f8b9a">varchar(40)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">user_id <span style="color:#7f8b9a">char(40)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">create_time <span style="color:#7f8b9a">datetime</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-5">
+                <span class="chevron"></span>
+                <span class="column-icon"><i data-lucide="box" width="14" height="14"></i></span>
+                <span class="label">is_deleted <span style="color:#7f8b9a">tinyint(1)</span></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-4">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="table-icon"><i data-lucide="table-2" width="15" height="15"></i></span>
+                <span class="label">coupon</span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-1">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="db-icon"><i data-lucide="database" width="15" height="15"></i></span>
+                <span class="label">prod closed</span>
+                <span class="status-pill"><span class="status-dot closed"></span>closed</span>
+              </div>
+              <div class="tree-row nested-1">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="db-icon"><i data-lucide="database" width="15" height="15"></i></span>
+                <span class="label">bff-node 5.7.43-log</span>
+                <span></span>
+              </div>
+            </section>
+
+            <section class="tree-section">
+              <div class="tree-row">
+                <span class="chevron"><i data-lucide="chevron-down" width="14" height="14"></i></span>
+                <span class="folder-icon"><i data-lucide="folder" width="15" height="15"></i></span>
+                <span class="label"><strong>local</strong></span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-1">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="db-icon"><i data-lucide="database" width="15" height="15"></i></span>
+                <span class="label">local-postgres</span>
+                <span></span>
+              </div>
+              <div class="tree-row nested-1">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="db-icon"><i data-lucide="hard-drive" width="15" height="15"></i></span>
+                <span class="label">local-sqlite</span>
+                <span></span>
+              </div>
+            </section>
+
+            <section class="tree-section">
+              <div class="tree-row">
+                <span class="chevron"><i data-lucide="chevron-right" width="14" height="14"></i></span>
+                <span class="folder-icon"><i data-lucide="folder" width="15" height="15"></i></span>
+                <span class="label"><strong>prod</strong></span>
+                <span></span>
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <main class="main table-mode" id="mainPane">
+          <div class="tabs" role="tablist">
+            <div class="tab" role="tab" aria-selected="false" id="sqlTab">
+              <i data-lucide="database" width="15" height="15" style="color:#f0c45f"></i>
+              <span>ss.sql</span>
+              <span class="dirty">U</span>
+              <i data-lucide="x" width="14" height="14"></i>
+            </div>
+            <div class="tab active" role="tab" aria-selected="true" id="tableTab">
+              <i data-lucide="table-2" width="15" height="15" style="color:#b9a6ff"></i>
+              <span>biz_user</span>
+              <i data-lucide="x" width="14" height="14" style="margin-left:auto"></i>
+            </div>
+          </div>
+
+          <section class="editor-wrap" aria-label="SQL 编辑器">
+            <div class="editor-toolbar">
+              <div class="breadcrumbs">
+                <span>src</span>
+                <i data-lucide="chevron-right" width="13" height="13"></i>
+                <span>report</span>
+                <i data-lucide="chevron-right" width="13" height="13"></i>
+                <span>market</span>
+                <i data-lucide="chevron-right" width="13" height="13"></i>
+                <span>ss.sql</span>
+                <span style="color:#6f7c8d">·</span>
+                <span id="editorConn">qa 5.1.0 / bi_dwd</span>
+              </div>
+              <div class="query-actions">
+                <button class="tool-button primary" id="runQuery" aria-label="执行当前语句"><i data-lucide="play" width="15" height="15"></i><span>Run</span></button>
+                <button class="tool-button hide-sm" aria-label="执行全部语句"><i data-lucide="list-video" width="15" height="15"></i><span>Run All</span></button>
+                <button class="tool-button hide-sm" aria-label="格式化 SQL"><i data-lucide="wand-sparkles" width="15" height="15"></i></button>
+                <button class="tool-button" aria-label="切换连接" id="toolbarSwitch"><i data-lucide="plug-zap" width="15" height="15"></i></button>
+              </div>
+            </div>
+
+            <div class="code-area" aria-label="SQL 文件内容">
+              <div class="code-line"><span class="ln">1</span><span class="sql"><span class="cm">-- Bound to current document, not global workspace</span></span></div>
+              <div class="code-line"><span class="ln">2</span><span class="sql"><span class="kw">SELECT</span></span></div>
+              <div class="code-line"><span class="ln">3</span><span class="sql">  <span class="fn">DATE</span>(t.created_at) <span class="kw">AS</span> date,</span></div>
+              <div class="code-line"><span class="ln">4</span><span class="sql">  <span class="fn">COUNT</span>(<span class="num">1</span>) <span class="kw">AS</span> order_count,</span></div>
+              <div class="code-line"><span class="ln">5</span><span class="sql">  <span class="fn">SUM</span>(t.pay_amount) <span class="kw">AS</span> order_amount</span></div>
+              <div class="code-line"><span class="ln">6</span><span class="sql"><span class="kw">FROM</span> <span class="id">tc_order</span> t</span></div>
+              <div class="code-line"><span class="ln">7</span><span class="sql"><span class="kw">INNER JOIN</span> <span class="id">notification_req</span> nr <span class="kw">ON</span> nr.id <span class="op">=</span> t.notification_req_id</span></div>
+              <div class="code-line active-selection"><span class="ln">8</span><span class="sql"><span class="kw">INNER JOIN</span> <span class="id">notification_sms</span> ns <span class="kw">ON</span> ns.notification_req_id <span class="op">=</span> nr.id</span></div>
+              <div class="code-line active-selection"><span class="ln">9</span><span class="sql"><span class="kw">AND</span> nr.is_deleted <span class="op">=</span> <span class="num">0</span></span></div>
+              <div class="code-line"><span class="ln">10</span><span class="sql"><span class="kw">INNER JOIN</span> <span class="id">biz_operator</span> bo <span class="kw">ON</span> bo.cellphone <span class="op">=</span> ns.cellphone</span></div>
+              <div class="code-line"><span class="ln">11</span><span class="sql"><span class="kw">WHERE</span> t.order_state <span class="kw">NOT IN</span> (</span></div>
+              <div class="code-line"><span class="ln">12</span><span class="sql">  <span class="str">'UNPAID'</span>,</span></div>
+              <div class="code-line"><span class="ln">13</span><span class="sql">  <span class="str">'CLOSED'</span>,</span></div>
+              <div class="code-line"><span class="ln">14</span><span class="sql">  <span class="str">'REFUNDED_TICKET'</span>,</span></div>
+              <div class="code-line"><span class="ln">15</span><span class="sql">  <span class="str">'REFUNDED'</span>,</span></div>
+              <div class="code-line"><span class="ln">16</span><span class="sql">  <span class="str">'CANCELED'</span></span></div>
+              <div class="code-line"><span class="ln">17</span><span class="sql">)</span></div>
+              <div class="code-line"><span class="ln">18</span><span class="sql"><span class="kw">AND</span> t.is_deleted <span class="op">=</span> <span class="num">0</span></span></div>
+              <div class="code-line"><span class="ln">19</span><span class="sql"><span class="kw">GROUP BY</span> <span class="fn">DATE</span>(t.created_at)</span></div>
+              <div class="code-line"><span class="ln">20</span><span class="sql"><span class="kw">ORDER BY</span> date <span class="kw">DESC</span></span></div>
+              <div class="code-line"><span class="ln">21</span><span class="sql"><span class="kw">LIMIT</span> <span class="num">100</span>;</span></div>
+            </div>
+
+            <div class="suggest-widget" aria-label="SQL 提示浮层">
+              <div class="suggest-title">Suggestions from qa 5.1.0 / bi_dwd</div>
+              <div class="suggest-row active">
+                <i data-lucide="table-2" width="14" height="14" style="color:#b9a6ff"></i>
+                <span>tc_order</span>
+                <span class="kind">table</span>
+              </div>
+              <div class="suggest-row">
+                <i data-lucide="columns-3" width="14" height="14" style="color:#7dd3a8"></i>
+                <span>order_state</span>
+                <span class="kind">varchar</span>
+              </div>
+              <div class="suggest-row">
+                <i data-lucide="columns-3" width="14" height="14" style="color:#7dd3a8"></i>
+                <span>pay_amount</span>
+                <span class="kind">decimal</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="table-detail-view" aria-label="表结构详情">
+            <div class="table-meta">
+              <div class="table-meta-top">
+                <div class="table-title-block">
+                  <div class="table-kicker">
+                    <i data-lucide="database" width="14" height="14"></i>
+                    <span>qa 5.1.0 / bi_dwd / Tables</span>
+                  </div>
+                  <h2>
+                    <i data-lucide="table-2" width="22" height="22" style="color:#b9a6ff"></i>
+                    biz_user
+                  </h2>
+                  <p>业务端用户表。MVP 中点击左侧 Table 后，右侧直接展示列信息，便于写 SQL 前确认字段。</p>
+                </div>
+                <div class="table-meta-actions">
+                  <button class="meta-button"><i data-lucide="file-code-2" width="15" height="15"></i>Open SELECT</button>
+                  <button class="meta-button"><i data-lucide="copy" width="15" height="15"></i>Copy DDL</button>
+                  <button class="meta-button"><i data-lucide="refresh-cw" width="15" height="15"></i>Refresh</button>
+                </div>
+              </div>
+              <div class="readonly-banner">
+                <span><strong>MVP read-only inspector.</strong> 列信息页不提供编辑、删除、重命名；数据和结构修改只能通过 SQL 文件执行。</span>
+                <span class="readonly-chip"><i data-lucide="shield-check" width="14" height="14"></i>SQL-only writes</span>
+              </div>
+              <div class="table-meta-grid">
+                <div class="meta-field"><span>Engine</span><strong>InnoDB</strong></div>
+                <div class="meta-field"><span>Collation</span><strong>utf8mb4_general_ci</strong></div>
+                <div class="meta-field"><span>Columns</span><strong>12</strong></div>
+                <div class="meta-field"><span>Rows</span><strong>estimated 124M</strong></div>
+              </div>
+            </div>
+
+            <div class="columns-view">
+              <div class="columns-tabs">
+                <div class="columns-tab"><i data-lucide="file-code-2" width="15" height="15"></i>DDL</div>
+                <div class="columns-tab active"><i data-lucide="columns-3" width="15" height="15"></i>Columns</div>
+                <div class="columns-tab"><i data-lucide="key-square" width="15" height="15"></i>Indexes</div>
+                <div class="columns-tab"><i data-lucide="link-2" width="15" height="15"></i>Foreign Keys</div>
+              </div>
+              <div class="columns-grid">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Length</th>
+                      <th>Comment</th>
+                      <th>Default</th>
+                      <th>Not Null</th>
+                      <th>Primary</th>
+                      <th>Unique</th>
+                      <th>Auto Inc</th>
+                      <th>Unsigned</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="key-icon"><i data-lucide="key-round" width="13" height="13"></i></span> id</td>
+                      <td>char</td><td>40</td><td>主键</td><td class="empty-cell">NULL</td>
+                      <td class="check-cell">✓</td><td class="check-cell">✓</td><td class="check-cell">✓</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>biz_code</td><td>varchar</td><td>20</td><td>业务端编码</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>sub_biz_code</td><td>varchar</td><td>32</td><td>二级业务端编码</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>status</td><td>varchar</td><td>10</td><td>用户状态</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>source</td><td>varchar</td><td>40</td><td>用户来源</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>user_id</td><td>char</td><td>40</td><td>统一用户ID</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>disabled_time</td><td>datetime</td><td class="empty-cell">-</td><td>注销时间</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>biz_operator_id</td><td>char</td><td>24</td><td>操作员ID</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>create_time</td><td>datetime</td><td class="empty-cell">-</td><td>创建时间</td><td class="empty-cell">NULL</td>
+                      <td class="check-cell">✓</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>update_time</td><td>datetime</td><td class="empty-cell">-</td><td>更新时间</td><td class="empty-cell">NULL</td>
+                      <td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                    <tr>
+                      <td>is_deleted</td><td>tinyint</td><td>1</td><td>是否删除</td><td>0</td>
+                      <td class="check-cell">✓</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td><td class="empty-cell">-</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel-wrap" aria-label="查询结果">
+            <div class="panel-tabs">
+              <div class="panel-tab-list">
+                <div class="panel-tab active"><i data-lucide="panel-bottom" width="15" height="15"></i>Result(RO)</div>
+                <div class="panel-tab"><i data-lucide="history" width="15" height="15"></i>History</div>
+                <div class="panel-tab"><i data-lucide="terminal-square" width="15" height="15"></i>Output</div>
+              </div>
+              <div class="panel-actions">
+                <button class="small-button" aria-label="面板最大化"><i data-lucide="maximize-2" width="15" height="15"></i></button>
+                <button class="small-button" aria-label="关闭结果"><i data-lucide="x" width="15" height="15"></i></button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="result-toolbar">
+                <div class="result-left">
+                  <button class="small-button" aria-label="刷新结果"><i data-lucide="refresh-cw" width="15" height="15"></i></button>
+                  <button class="small-button" aria-label="固定结果标签"><i data-lucide="pin" width="15" height="15"></i></button>
+                  <div class="searchbox">
+                    <i data-lucide="search" width="14" height="14"></i>
+                    <input placeholder="搜索结果集" aria-label="搜索结果集" />
+                  </div>
+                  <button class="small-button" aria-label="表格设置"><i data-lucide="settings" width="15" height="15"></i></button>
+                  <button class="small-button" aria-label="复制"><i data-lucide="copy" width="15" height="15"></i></button>
+                  <button class="small-button" aria-label="导出"><i data-lucide="download" width="15" height="15"></i></button>
+                </div>
+                <div class="result-right">
+                  <button class="tool-button primary" id="runQuery2" aria-label="再次执行"><i data-lucide="play" width="15" height="15"></i></button>
+                  <span class="readonly-chip"><i data-lucide="lock" width="13" height="13"></i>Result read-only</span>
+                  <span class="elapsed">耗时: <strong id="elapsedTime">1.6s</strong></span>
+                  <span class="elapsed">Rows: 100</span>
+                </div>
+              </div>
+
+              <div class="result-grid">
+                <table>
+                  <thead>
+                    <tr>
+                      <th class="row-expander"></th>
+                      <th>date<span class="type">date</span></th>
+                      <th>order_count<span class="type">bigint</span></th>
+                      <th>order_amount<span class="type">decimal</span></th>
+                      <th>refund_count<span class="type">bigint</span></th>
+                      <th>paid_rate<span class="type">decimal</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-09</td><td>209</td><td>41104.00</td><td>3</td><td>0.91</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-10</td><td>226</td><td>121847.90</td><td>5</td><td>0.88</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-11</td><td>204</td><td>160487.60</td><td>1</td><td>0.94</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-12</td><td>273</td><td>214687.87</td><td>8</td><td>0.86</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-13</td><td>247</td><td>155812.50</td><td>4</td><td>0.90</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-14</td><td>201</td><td>401376.00</td><td>2</td><td>0.93</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-15</td><td>758</td><td>2232811.50</td><td>12</td><td>0.87</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-16</td><td>493</td><td>781842.60</td><td>7</td><td>0.89</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-17</td><td>419</td><td>741509.49</td><td>6</td><td>0.92</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-18</td><td>696</td><td>1134776.30</td><td>11</td><td>0.85</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-19</td><td>166</td><td>48442.70</td><td>0</td><td>0.97</td></tr>
+                    <tr><td class="row-expander"><i data-lucide="chevron-right" width="14" height="14"></i></td><td>2026-06-20</td><td>334</td><td>37467.34</td><td>2</td><td>0.91</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+
+      <footer class="statusbar">
+        <div class="status-item hide-sm"><i data-lucide="git-branch" width="13" height="13"></i>dev_7022273210*</div>
+        <div class="status-item hide-sm"><i data-lucide="sync" width="13" height="13"></i></div>
+        <div class="status-item hide-sm"><i data-lucide="bug" width="13" height="13"></i>debug:qa</div>
+        <div class="status-fill"></div>
+        <div class="status-item clickable" id="statusConnection" title="Choose Active Connection">
+          <i data-lucide="plug-zap" width="13" height="13"></i>
+          <span id="statusConnText">qa 5.1.0</span>
+        </div>
+        <div class="status-item" id="statusDb"><i data-lucide="database" width="13" height="13"></i>bi_dwd</div>
+        <div class="status-item hide-sm"><i data-lucide="shield-check" width="13" height="13"></i>readonly</div>
+      </footer>
+    </div>
+  </div>
+
+  <div class="quickpick-backdrop" id="quickpickBackdrop" aria-hidden="true">
+    <div class="quickpick" role="dialog" aria-label="Choose Active Connection">
+      <div class="quickpick-title">Choose Active Connection</div>
+      <div class="quickpick-search">
+        <input id="quickpickInput" placeholder="Pick a connection" aria-label="Pick a connection" />
+      </div>
+      <div class="pick-list" id="pickList">
+        <div class="pick-item active" data-name="qa 5.1.0" data-db="bi_dwd">
+          <i data-lucide="database-zap" width="16" height="16" style="color:#4cc2ff"></i>
+          <div class="pick-name"><strong>qa 5.1.0</strong><span>sr</span></div>
+          <span class="current-label">Current</span>
+        </div>
+        <div class="pick-item" data-name="prod closed" data-db="bi_dwd">
+          <i data-lucide="database" width="16" height="16" style="color:#4cc2ff"></i>
+          <div class="pick-name"><strong>prod closed</strong><span>sr</span></div>
+        </div>
+        <div class="pick-item" data-name="bff-node 5.7.43-log" data-db="report_log">
+          <i data-lucide="database" width="16" height="16" style="color:#4cc2ff"></i>
+          <div class="pick-name"><strong>bff-node 5.7.43-log</strong><span>sr</span></div>
+        </div>
+        <div class="pick-item" data-name="local-postgres" data-db="public">
+          <i data-lucide="database" width="16" height="16" style="color:#7dd3a8"></i>
+          <div class="pick-name"><strong>local-postgres</strong><span>local</span></div>
+        </div>
+        <div class="pick-item" data-name="local-sqlite" data-db="main">
+          <i data-lucide="hard-drive" width="16" height="16" style="color:#f0b35a"></i>
+          <div class="pick-name"><strong>local-sqlite</strong><span>local</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">Query executed on qa 5.1.0 / bi_dwd</div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    const fallbackIcon = '<span style="width:14px;height:14px;display:inline-block"></span>';
+    if (window.lucide) {
+      window.lucide.createIcons();
+    } else {
+      document.querySelectorAll("[data-lucide]").forEach((node) => node.outerHTML = fallbackIcon);
+    }
+
+    const backdrop = document.getElementById("quickpickBackdrop");
+    const quickpickInput = document.getElementById("quickpickInput");
+    const pickList = document.getElementById("pickList");
+    const pickItems = Array.from(document.querySelectorAll(".pick-item"));
+    const statusConnection = document.getElementById("statusConnection");
+    const toolbarSwitch = document.getElementById("toolbarSwitch");
+    const statusConnText = document.getElementById("statusConnText");
+    const statusDb = document.getElementById("statusDb");
+    const editorConn = document.getElementById("editorConn");
+    const toast = document.getElementById("toast");
+    const elapsedTime = document.getElementById("elapsedTime");
+    const mainPane = document.getElementById("mainPane");
+    const sqlTab = document.getElementById("sqlTab");
+    const tableTab = document.getElementById("tableTab");
+    const treeBizUser = document.getElementById("treeBizUser");
+
+    function showPicker() {
+      backdrop.classList.add("open");
+      backdrop.setAttribute("aria-hidden", "false");
+      quickpickInput.value = "";
+      filterItems("");
+      setTimeout(() => quickpickInput.focus(), 30);
+    }
+
+    function closePicker() {
+      backdrop.classList.remove("open");
+      backdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function selectConnection(item) {
+      const name = item.dataset.name;
+      const db = item.dataset.db;
+      statusConnText.textContent = name;
+      statusDb.innerHTML = '<i data-lucide="database" width="13" height="13"></i>' + db;
+      editorConn.textContent = name + " / " + db;
+      pickItems.forEach((row) => {
+        row.classList.toggle("active", row === item);
+        row.querySelector(".current-label")?.remove();
+        if (row === item) {
+          const marker = document.createElement("span");
+          marker.className = "current-label";
+          marker.textContent = "Current";
+          row.appendChild(marker);
+        }
+      });
+      if (window.lucide) window.lucide.createIcons();
+      closePicker();
+      showToast("Bound ss.sql to " + name + " / " + db);
+    }
+
+    function filterItems(value) {
+      const q = value.trim().toLowerCase();
+      pickItems.forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(q) ? "grid" : "none";
+      });
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    statusConnection.addEventListener("click", showPicker);
+    toolbarSwitch.addEventListener("click", showPicker);
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) closePicker();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closePicker();
+      if ((event.metaKey || event.ctrlKey) && event.altKey && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        showPicker();
+      }
+    });
+    quickpickInput.addEventListener("input", (event) => filterItems(event.target.value));
+    pickItems.forEach((item) => item.addEventListener("click", () => selectConnection(item)));
+
+    function showSqlView() {
+      mainPane.classList.remove("table-mode");
+      sqlTab.classList.add("active");
+      sqlTab.setAttribute("aria-selected", "true");
+      tableTab.classList.remove("active");
+      tableTab.setAttribute("aria-selected", "false");
+      treeBizUser.classList.remove("selected");
+    }
+
+    function showTableView() {
+      mainPane.classList.add("table-mode");
+      tableTab.classList.add("active");
+      tableTab.setAttribute("aria-selected", "true");
+      sqlTab.classList.remove("active");
+      sqlTab.setAttribute("aria-selected", "false");
+      treeBizUser.classList.add("selected");
+    }
+
+    sqlTab.addEventListener("click", showSqlView);
+    tableTab.addEventListener("click", showTableView);
+    treeBizUser.addEventListener("click", showTableView);
+
+    function simulateRun() {
+      elapsedTime.textContent = "0." + Math.floor(7 + Math.random() * 8) + "s";
+      showToast("Query executed on " + editorConn.textContent);
+    }
+
+    document.getElementById("runQuery").addEventListener("click", simulateRun);
+    document.getElementById("runQuery2").addEventListener("click", simulateRun);
+  </script>
+</body>
+</html>

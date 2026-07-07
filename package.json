@@ -1,0 +1,180 @@
+{
+  "name": "sql-workbench-vscode",
+  "displayName": "SQL Workbench",
+  "description": "A local-first VS Code database client focused on SQL-first workflows.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:sqlWorkbench.connections",
+    "onCommand:sqlWorkbench.connection.add",
+    "onCommand:sqlWorkbench.connection.edit",
+    "onCommand:sqlWorkbench.connection.delete",
+    "onCommand:sqlWorkbench.connection.refresh",
+    "onCommand:sqlWorkbench.connection.switchActive",
+    "onCommand:sqlWorkbench.query.open",
+    "onCommand:sqlWorkbench.query.runCurrent",
+    "onCommand:sqlWorkbench.query.runAll"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sqlWorkbench",
+          "title": "Database",
+          "icon": "resources/database.svg"
+        }
+      ]
+    },
+    "views": {
+      "sqlWorkbench": [
+        {
+          "id": "sqlWorkbench.connections",
+          "name": "Database"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "sqlWorkbench.connection.add",
+        "title": "Add Connection",
+        "category": "SQL Workbench",
+        "icon": "$(add)"
+      },
+      {
+        "command": "sqlWorkbench.connection.edit",
+        "title": "Edit Connection",
+        "category": "SQL Workbench",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "sqlWorkbench.connection.delete",
+        "title": "Delete Connection",
+        "category": "SQL Workbench",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "sqlWorkbench.connection.refresh",
+        "title": "Refresh Connections",
+        "category": "SQL Workbench",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "sqlWorkbench.connection.switchActive",
+        "title": "Switch Active Connection",
+        "category": "SQL Workbench"
+      },
+      {
+        "command": "sqlWorkbench.query.open",
+        "title": "Open Query",
+        "category": "SQL Workbench",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "sqlWorkbench.query.runCurrent",
+        "title": "Run Current Query",
+        "category": "SQL Workbench",
+        "icon": "$(play)"
+      },
+      {
+        "command": "sqlWorkbench.query.runAll",
+        "title": "Run All Queries",
+        "category": "SQL Workbench",
+        "icon": "$(run-all)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sqlWorkbench.query.runCurrent",
+          "when": "resourceLangId == sql",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqlWorkbench.query.runAll",
+          "when": "resourceLangId == sql",
+          "group": "navigation@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "sqlWorkbench.connection.add",
+          "when": "view == sqlWorkbench.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqlWorkbench.connection.refresh",
+          "when": "view == sqlWorkbench.connections",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "sqlWorkbench.query.open",
+          "when": "view == sqlWorkbench.connections && viewItem == connection",
+          "group": "inline@1"
+        },
+        {
+          "command": "sqlWorkbench.connection.edit",
+          "when": "view == sqlWorkbench.connections && viewItem == connection",
+          "group": "inline@2"
+        },
+        {
+          "command": "sqlWorkbench.connection.delete",
+          "when": "view == sqlWorkbench.connections && viewItem == connection",
+          "group": "inline@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SQL Workbench",
+      "properties": {
+        "sqlWorkbench.defaultSelectLimit": {
+          "type": "number",
+          "default": 100,
+          "minimum": 1,
+          "description": "Default LIMIT used when opening table data."
+        }
+      }
+    },
+    "languages": [
+      {
+        "id": "sql",
+        "extensions": [
+          ".sql"
+        ],
+        "aliases": [
+          "SQL"
+        ]
+      }
+    ],
+    "snippets": [
+      {
+        "language": "sql",
+        "path": "./snippets/sql.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "check": "tsc -p ./ --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@types/sql.js": "^1.4.11",
+    "sql.js": "^1.14.1"
+  }
+}
