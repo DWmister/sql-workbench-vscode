@@ -6,6 +6,10 @@
   "publisher": "local",
   "private": true,
   "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/DWmister/sql-workbench-vscode.git"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },
