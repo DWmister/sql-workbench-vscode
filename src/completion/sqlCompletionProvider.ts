@@ -2,6 +2,12 @@ import * as vscode from 'vscode';
 import type { ConnectionConfig } from '../connection/types';
 import type { SchemaInspector } from '../schema/inspector';
 import type { TableDetails, TableInfo } from '../schema/types';
+import {
+  type CompletionContext,
+  getScopedTableDetails,
+  getSqlCompletionContext,
+  normalizeIdentifier,
+} from './sqlCompletionContext';
 
 const SQL_KEYWORDS = [
   'SELECT',
@@ -44,7 +50,7 @@ export function registerSqlCompletionProvider(
   return vscode.languages.registerCompletionItemProvider(
     { language: 'sql', scheme: '*' },
     {
-      async provideCompletionItems() {
+      async provideCompletionItems(document, position) {
         const items = createKeywordItems();
         const connection = await options.resolveConnection();
 
@@ -53,8 +59,16 @@ export function registerSqlCompletionProvider(
         }
 
         const schema = await loadSchema(connection, options.schemaInspector, cache);
+        const context = getCompletionContext(document, position);
+        await ensureReferencedTableDetails(schema, context, options.schemaInspector);
+        const scopedDetails = getScopedTableDetails(schema.details, context);
+
+        if (context.aliasQualifier) {
+          return createColumnItems(scopedDetails, context.aliasQualifier);
+        }
+
         items.push(...createTableItems(schema.tables));
-        items.push(...createColumnItems(schema.details));
+        items.push(...createColumnItems(scopedDetails));
 
         return items;
       },
@@ -97,6 +111,33 @@ async function loadSchema(
   }
 }
 
+async function ensureReferencedTableDetails(
+  schema: CachedSchema,
+  context: CompletionContext,
+  schemaInspector: SchemaInspector,
+): Promise<void> {
+  const loaded = new Set(schema.details.map((table) => normalizeIdentifier(table.name)));
+  const needed = new Set(context.tableRefs.map((tableRef) => tableRef.tableName));
+
+  for (const tableName of needed) {
+    if (loaded.has(tableName)) {
+      continue;
+    }
+
+    const table = schema.tables.find((candidate) => normalizeIdentifier(candidate.name) === tableName);
+    if (!table) {
+      continue;
+    }
+
+    try {
+      schema.details.push(await schemaInspector.getTableDetails(table));
+      loaded.add(tableName);
+    } catch {
+      // Completion should stay quiet if a metadata lookup fails.
+    }
+  }
+}
+
 function createKeywordItems(): vscode.CompletionItem[] {
   return SQL_KEYWORDS.map((keyword) => {
     const item = new vscode.CompletionItem(keyword, vscode.CompletionItemKind.Keyword);
@@ -115,11 +156,24 @@ function createTableItems(tables: TableInfo[]): vscode.CompletionItem[] {
   });
 }
 
-function createColumnItems(details: TableDetails[]): vscode.CompletionItem[] {
+function getCompletionContext(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+): CompletionContext {
+  const textBeforeCursor = document.getText(
+    new vscode.Range(new vscode.Position(0, 0), position),
+  );
+  return getSqlCompletionContext(textBeforeCursor);
+}
+
+function createColumnItems(
+  details: TableDetails[],
+  aliasQualifier?: string,
+): vscode.CompletionItem[] {
   return details.flatMap((table) =>
     table.columns.map((column) => {
       const item = new vscode.CompletionItem(column.name, vscode.CompletionItemKind.Field);
-      item.detail = `${table.name}.${column.name}`;
+      item.detail = `${aliasQualifier ?? table.name}.${column.name}`;
       item.documentation = [
         column.type || 'column',
         column.primaryKey ? 'primary key' : undefined,

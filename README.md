@@ -19,11 +19,12 @@ Implemented MVP includes:
 - Connection model and connection store for MySQL/MariaDB, PostgreSQL, and SQLite.
 - Grouped connection TreeView.
 - Webview connection form with save and test connection actions.
+- Shortcut connection strings such as `mysql://root:password@127.0.0.1:3306/app?name=prod&group=sr`.
 - Edit name / delete / refresh connection commands.
 - Active connection status bar item and QuickPick switcher.
 - `Open Query` command that opens an untitled SQL file bound by comment to the selected connection.
 - Run current SQL statement or full SQL document from the native VS Code editor.
-- `Shift+Enter` runs the current SQL statement.
+- `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows/Linux runs the current SQL statement. Users can override it in VS Code Keyboard Shortcuts.
 - Read-only result webview for query output.
 - Read-only schema tree: connection -> tables -> table -> columns.
 - Read-only table column inspector opened beside the editor.

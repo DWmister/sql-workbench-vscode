@@ -1,5 +1,6 @@
 src
 *.map
+*.sql
 tsconfig.json
 database-client-competitive-analysis.md
 database-client-roadmap.html

@@ -210,7 +210,8 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       letter-spacing: 0;
     }
     .top-grid,
-    .form-grid {
+    .form-grid,
+    .shortcut-grid {
       display: grid;
       grid-template-columns: 130px minmax(220px, 1fr) 130px minmax(220px, 1fr);
       gap: 14px 18px;
@@ -236,16 +237,25 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       color: var(--danger);
     }
     input,
-    select {
+    select,
+    textarea {
       width: 100%;
       box-sizing: border-box;
-      height: 32px;
       padding: 5px 9px;
       border: 1px solid var(--field-border);
       border-radius: 4px;
       color: var(--vscode-input-foreground);
       background: var(--field);
       font-family: inherit;
+    }
+    input,
+    select {
+      height: 32px;
+    }
+    textarea {
+      min-height: 54px;
+      resize: vertical;
+      line-height: 1.45;
     }
     .service-tabs {
       display: flex;
@@ -268,6 +278,16 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
     }
     .wide {
       grid-column: span 3;
+    }
+    .inline-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hint {
+      grid-column: 2 / -1;
+      color: var(--muted);
+      font-size: 0.92em;
     }
     .sqlite-only {
       display: none;
@@ -316,10 +336,14 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
         padding: 22px 18px 30px;
       }
       .top-grid,
-      .form-grid {
+      .form-grid,
+      .shortcut-grid {
         grid-template-columns: 1fr;
       }
       .wide {
+        grid-column: auto;
+      }
+      .hint {
         grid-column: auto;
       }
     }
@@ -337,6 +361,19 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       <input id="name" autocomplete="off" placeholder="连接名称">
       <label class="required" for="group">分组</label>
       <input id="group" autocomplete="off" value="Default">
+    </div>
+
+    <div class="section">
+      <div class="section-title">快捷连接</div>
+      <div class="shortcut-grid">
+        <label for="shortcut">连接字符串</label>
+        <textarea id="shortcut" class="wide" spellcheck="false" placeholder="mysql://root:password@127.0.0.1:3306/app?name=prod&group=sr"></textarea>
+        <div></div>
+        <div class="inline-actions">
+          <button class="action secondary" type="button" id="parseShortcut">解析</button>
+        </div>
+        <div class="hint">支持 mysql://、mariadb://、postgresql://、postgres://、sqlite:///path/to/db.sqlite，可用 query 参数指定 name/group。</div>
+      </div>
     </div>
 
     <div class="section">
@@ -397,6 +434,15 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
     document.getElementById('close').addEventListener('click', () => {
       vscode.postMessage({ type: 'close' });
     });
+    document.getElementById('parseShortcut').addEventListener('click', () => {
+      const parsed = parseShortcut(value('shortcut'));
+      if (!parsed.ok) {
+        setStatus(parsed.message, 'error');
+        return;
+      }
+      applyShortcut(parsed.value);
+      setStatus('连接字符串已解析。', 'ok');
+    });
 
     window.addEventListener('message', (event) => {
       const message = event.data;
@@ -429,8 +475,93 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       };
     }
 
+    function parseShortcut(raw) {
+      const text = raw.trim();
+      if (!text) {
+        return { ok: false, message: '请输入连接字符串。' };
+      }
+
+      let url;
+      try {
+        url = new URL(text);
+      } catch (error) {
+        return { ok: false, message: '连接字符串格式无效。' };
+      }
+
+      const protocol = url.protocol.replace(':', '').toLowerCase();
+      const type = normalizeShortcutType(protocol);
+      if (!type) {
+        return { ok: false, message: '仅支持 mysql、mariadb、postgresql、postgres、sqlite。' };
+      }
+
+      const database = decodeURIComponent(url.pathname.replace(/^\\//, ''));
+      const params = url.searchParams;
+      const name = params.get('name') || url.hostname || database || 'connection';
+      const group = params.get('group') || value('group') || 'Default';
+
+      if (type === 'sqlite') {
+        const sqlitePath = decodeURIComponent(url.pathname || url.hostname || '');
+        return {
+          ok: true,
+          value: {
+            type,
+            name,
+            group,
+            path: sqlitePath
+          }
+        };
+      }
+
+      return {
+        ok: true,
+        value: {
+          type,
+          name,
+          group,
+          host: url.hostname,
+          port: url.port ? Number(url.port) : defaultPort(type),
+          username: decodeURIComponent(url.username || ''),
+          password: decodeURIComponent(url.password || ''),
+          database
+        }
+      };
+    }
+
+    function normalizeShortcutType(protocol) {
+      if (protocol === 'mysql' || protocol === 'mariadb') {
+        return 'mysql';
+      }
+      if (protocol === 'postgresql' || protocol === 'postgres') {
+        return 'postgresql';
+      }
+      if (protocol === 'sqlite') {
+        return 'sqlite';
+      }
+      return undefined;
+    }
+
+    function defaultPort(type) {
+      return type === 'postgresql' ? 5432 : 3306;
+    }
+
+    function applyShortcut(value) {
+      setType(value.type);
+      setValue('name', value.name || '');
+      setValue('group', value.group || 'Default');
+      setValue('host', value.host || '127.0.0.1');
+      setValue('port', value.port ? String(value.port) : String(defaultPort(value.type)));
+      setValue('username', value.username || '');
+      setValue('password', value.password || '');
+      setValue('database', value.database || '');
+      setValue('path', value.path || '');
+    }
+
     function value(id) {
       return document.getElementById(id).value;
+    }
+
+    function setValue(id, nextValue) {
+      document.getElementById(id).value = nextValue;
     }
 
     function setStatus(text, state) {
