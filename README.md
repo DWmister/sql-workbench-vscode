@@ -25,7 +25,7 @@ Implemented MVP includes:
 - Read-only result webview for query output.
 - Read-only schema tree: connection -> tables -> table -> columns.
 - Read-only table column inspector opened beside the editor.
-- Basic SQL snippets.
+- Basic SQL snippets and completions for SQL keywords, active-connection tables, and columns.
 
 The MVP intentionally does not support editing result cells, editing columns, or deleting schema objects through the UI. Those changes must be made with SQL.
 

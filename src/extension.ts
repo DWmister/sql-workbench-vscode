@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { registerSqlCompletionProvider } from './completion/sqlCompletionProvider';
 import { ConnectionStore } from './connection/connectionStore';
 import {
   type ConnectionConfig,
@@ -179,6 +180,10 @@ export function activate(context: vscode.ExtensionContext): void {
         await statusBar.refresh();
         return selected;
       },
+    }),
+    registerSqlCompletionProvider({
+      schemaInspector,
+      resolveConnection: () => activeConnection.get(),
     }),
   );
 
