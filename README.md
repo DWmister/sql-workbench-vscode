@@ -6,6 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
+![Version](https://img.shields.io/badge/version-0.1.0-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -50,15 +51,17 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# Install dependencies.
 npm install
 
-# 2. Type-check and compile
+# Validate TypeScript types without writing build output.
 npm run check
+
+# Compile extension sources into out/.
 npm run compile
 
-# 3. Launch the extension from VS Code
-# Press F5 in VS Code, or use the Extension Development Host.
+# Start locally:
+# open this folder in VS Code, press F5, and use the Extension Development Host.
 ```
 
 After the extension starts:
@@ -87,18 +90,30 @@ Supported schemes:
 - `postgres://`
 - `sqlite://`
 
-## Verification
+## Versioning
+
+Current MVP release line: `0.1.x`.
+
+- MVP fixes and small improvements: bump patch versions, for example `0.1.1`.
+- Larger feature updates before the full release: bump minor versions, for example `0.2.0`.
+- Full version with the planned complete feature set: bump major version to `1.0.0`.
+
+## Local Verification
 
 ```bash
+# Type-check the project.
 npm run check
+
+# Build the extension output used by VS Code.
 npm run compile
+
+# Regenerate README screenshots after UI changes.
 npm run screenshots
+
+# Package a local VSIX for installation testing.
 npx --yes @vscode/vsce package
-```
 
-`npm run screenshots` renders the README images with headless Chrome. Set `CHROME_PATH` if Chrome is not installed at the default macOS path:
-
-```bash
+# Optional: choose a non-default Chrome executable for screenshot generation.
 CHROME_PATH="/path/to/chrome" npm run screenshots
 ```
 
@@ -119,11 +134,12 @@ The MVP intentionally does not support editing result cells, editing columns, or
 
 ## Roadmap
 
-- `0.2`: Extension-level configuration for custom execution shortcuts.
-- `0.2`: Better packaging through bundling to reduce VSIX size.
-- `0.2`: Richer connection editing and import/export.
-- `0.3`: Query history and result export refinements.
-- Later: Optional guarded GUI editing workflows.
+- `0.1.x`: MVP fixes, SQL completion refinements, and connection-form polish.
+- `0.2.x`: Extension-level configuration for custom execution shortcuts.
+- `0.2.x`: Better packaging through bundling to reduce VSIX size.
+- `0.2.x`: Richer connection editing and import/export.
+- `0.3.x`: Query history and result export refinements.
+- `1.0.0`: Complete planned feature set.
 
 ## FAQ
 
@@ -138,7 +154,3 @@ They live in your normal VS Code workspace as `.sql` files. The extension does n
 ### How are passwords stored?
 
 Passwords are stored in VS Code `SecretStorage`. Normal connection metadata is stored in extension `globalState`.
-
-### Why are screenshots generated?
-
-The README screenshots are created by `npm run screenshots` so UI documentation can be refreshed after visual changes.
