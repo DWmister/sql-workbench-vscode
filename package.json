@@ -190,7 +190,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "check": "tsc -p ./ --noEmit"
+    "check": "tsc -p ./ --noEmit",
+    "screenshots": "node scripts/generate-readme-screenshots.js"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
