@@ -3,13 +3,25 @@
   "displayName": "SQL Workbench",
   "description": "A local-first VS Code database client focused on SQL-first workflows.",
   "version": "0.1.0",
-  "publisher": "local",
-  "private": true,
-  "license": "UNLICENSED",
+  "publisher": "dwmister",
+  "license": "MIT",
+  "preview": true,
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/DWmister/sql-workbench-vscode.git"
   },
+  "homepage": "https://github.com/DWmister/sql-workbench-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/DWmister/sql-workbench-vscode/issues"
+  },
+  "keywords": [
+    "sql",
+    "database",
+    "mysql",
+    "postgresql",
+    "sqlite",
+    "workbench"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },

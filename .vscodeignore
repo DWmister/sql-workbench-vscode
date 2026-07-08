@@ -1,6 +1,8 @@
 src
+scripts
 *.map
 *.sql
+.gitignore
 tsconfig.json
 database-client-competitive-analysis.md
 database-client-roadmap.html

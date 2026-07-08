@@ -10,7 +10,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
-![License](https://img.shields.io/badge/license-UNLICENSED-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
 ![Connection form](docs/images/connection-form.png)
 
