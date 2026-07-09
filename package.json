@@ -2,7 +2,7 @@
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
   "description": "A VS Code database workbench with connection management, schema browsing, SQL execution, and smart completions.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {
