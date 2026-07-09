@@ -7,6 +7,14 @@ export interface QueryColumn {
   type?: string;
 }
 
+export interface QueryResultPagination {
+  mode: 'server';
+  sourceSql: string;
+  page: number;
+  pageSize: number;
+  totalRows: number;
+}
+
 export interface QueryResult {
   sql: string;
   columns: QueryColumn[];
@@ -19,4 +27,5 @@ export interface QueryResult {
   connectionId?: string;
   connectionName?: string;
   executedAt: string;
+  pagination?: QueryResultPagination;
 }

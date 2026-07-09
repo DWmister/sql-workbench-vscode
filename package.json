@@ -2,7 +2,7 @@
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
   "description": "A VS Code database workbench with connection management, schema browsing, SQL execution, and smart completions.",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {
@@ -172,11 +172,17 @@
     "configuration": {
       "title": "SQL Workbench",
       "properties": {
-        "sqlWorkbench.defaultSelectLimit": {
+        "sqlWorkbench.queryTimeoutMs": {
           "type": "number",
-          "default": 100,
+          "default": 30000,
+          "minimum": 1000,
+          "description": "Maximum time in milliseconds to wait for a database query before the driver times out."
+        },
+        "sqlWorkbench.resultPageSize": {
+          "type": "number",
+          "default": 10,
           "minimum": 1,
-          "description": "Default LIMIT used when opening table data."
+          "description": "Number of rows fetched and displayed per page for pageable SELECT results."
         }
       }
     },
