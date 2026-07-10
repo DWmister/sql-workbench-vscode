@@ -7,11 +7,17 @@ import initSqlJs = require('sql.js');
 import type { ConnectionConfig } from '../connection/types';
 import type { QueryColumn, QueryResult, QueryRow, QueryValue } from '../results/types';
 import { splitSqlStatements } from './sqlParser';
+import { compileSqlVariables, type SqlVariableDialect } from './sqlVariables';
 
 export interface QueryRunner {
-  execute(connection: ConnectionConfig, sql: string, executionOptions?: QueryExecutionOptions): Promise<QueryResult[]>;
+  execute(connection: ConnectionConfig, query: QueryInput, executionOptions?: QueryExecutionOptions): Promise<QueryResult[]>;
   fetchPage(connection: ConnectionConfig, request: QueryPageRequest, executionOptions?: QueryExecutionOptions): Promise<QueryResult>;
 }
+
+export type QueryInput = string | {
+  sql: string;
+  variableValues?: Record<string, unknown>;
+};
 
 export interface QueryExecutionOptions {
   queryTimeoutMs?: number;
@@ -20,6 +26,7 @@ export interface QueryExecutionOptions {
 
 export interface QueryPageRequest {
   sql: string;
+  variableValues?: Record<string, unknown>;
   page: number;
   pageSize: number;
   totalRows: number;
@@ -31,22 +38,28 @@ export interface QueryRunnerOptions {
 
 let sqlJsPromise: Promise<initSqlJs.SqlJsStatic> | undefined;
 
+interface NormalizedQueryInput {
+  sql: string;
+  variableValues: Record<string, unknown>;
+}
+
 export function createQueryRunner(options: QueryRunnerOptions = {}): QueryRunner {
   return {
-    execute(connection, sql, executionOptions = {}) {
+    execute(connection, query, executionOptions = {}) {
+      const input = normalizeQueryInput(query);
       if (connection.type === 'sqlite') {
-        return executeSqlite(connection, sql, executionOptions);
+        return executeSqlite(connection, input, executionOptions);
       }
 
       if (connection.type === 'mysql') {
-        return executeMysql(connection, sql, options, executionOptions);
+        return executeMysql(connection, input, options, executionOptions);
       }
 
       if (connection.type === 'postgresql') {
-        return executePostgresql(connection, sql, options, executionOptions);
+        return executePostgresql(connection, input, options, executionOptions);
       }
 
-      return Promise.resolve([createErrorResult(connection, sql, 'Unsupported database type.', 0)]);
+      return Promise.resolve([createErrorResult(connection, input.sql, 'Unsupported database type.', 0)]);
     },
     fetchPage(connection, request, executionOptions = {}) {
       if (connection.type === 'sqlite') {
@@ -68,16 +81,16 @@ export function createQueryRunner(options: QueryRunnerOptions = {}): QueryRunner
 
 async function executeSqlite(
   connection: ConnectionConfig,
-  sql: string,
+  query: NormalizedQueryInput,
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult[]> {
   if (!connection.path) {
-    return [createErrorResult(connection, sql, 'SQLite connection is missing a database file path.', 0)];
+    return [createErrorResult(connection, query.sql, 'SQLite connection is missing a database file path.', 0)];
   }
 
-  const statements = splitSqlStatements(sql);
+  const statements = splitSqlStatements(query.sql);
   if (statements.length === 0) {
-    return [createErrorResult(connection, sql, 'No SQL statement to execute.', 0)];
+    return [createErrorResult(connection, query.sql, 'No SQL statement to execute.', 0)];
   }
 
   const SQL = await getSqlJs();
@@ -90,7 +103,7 @@ async function executeSqlite(
 
   try {
     if (statements.length === 1 && isPageableSelect(statements[0])) {
-      results.push(executeSqlitePage(database, connection, statements[0], 1, getResultPageSize(executionOptions), undefined));
+      results.push(executeSqlitePage(database, connection, statements[0], query.variableValues, 1, getResultPageSize(executionOptions), undefined));
       return results;
     }
 
@@ -99,7 +112,8 @@ async function executeSqlite(
 
       try {
         const readOnlyStatement = isReadOnlyStatement(statement);
-        const executed = database.exec(statement);
+        const compiled = compileQuery(statement, query.variableValues, 'sqlite');
+        const executed = executeSqliteStatement(database, compiled.sql, compiled.params);
         const elapsedMs = roundElapsed(start);
         const affectedRows = database.getRowsModified();
 
@@ -132,8 +146,7 @@ async function executeSqlite(
     }
 
     if (shouldPersist) {
-      await fs.promises.mkdir(path.dirname(connection.path), { recursive: true });
-      await fs.promises.writeFile(connection.path, Buffer.from(database.export()));
+      await persistSqliteDatabase(connection.path, database);
     }
   } finally {
     database.close();
@@ -158,7 +171,7 @@ async function fetchSqlitePage(
   const database = new SQL.Database(databaseBytes);
 
   try {
-    return executeSqlitePage(database, connection, request.sql, request.page, request.pageSize, request.totalRows);
+    return executeSqlitePage(database, connection, request.sql, request.variableValues ?? {}, request.page, request.pageSize, request.totalRows);
   } finally {
     database.close();
   }
@@ -168,6 +181,7 @@ function executeSqlitePage(
   database: initSqlJs.Database,
   connection: ConnectionConfig,
   sql: string,
+  variableValues: Record<string, unknown>,
   page: number,
   pageSize: number,
   knownTotalRows: number | undefined,
@@ -175,9 +189,14 @@ function executeSqlitePage(
   const start = performance.now();
 
   try {
-    const totalRows = knownTotalRows ?? getSqliteCount(database, sql);
+    const compiled = compileQuery(sql, variableValues, 'sqlite');
+    const totalRows = knownTotalRows ?? getSqliteCount(database, sql, variableValues);
     const pageSql = toPageSql(sql, page, pageSize);
-    const executed = database.exec(pageSql);
+    const pageCompiled = {
+      ...compiled,
+      sql: toPageSql(compiled.sql, page, pageSize),
+    };
+    const executed = executeSqliteStatement(database, pageCompiled.sql, pageCompiled.params);
     const result = executed[0];
     const elapsedMs = roundElapsed(start);
 
@@ -186,28 +205,29 @@ function executeSqlitePage(
       columns: result ? result.columns.map((name): QueryColumn => ({ name })) : [],
       rows: result ? result.values.map(normalizeRow) : [],
       rowCount: totalRows,
-      pagination: toPagination(sql, page, pageSize, totalRows),
+      pagination: toPagination(sql, page, pageSize, totalRows, variableValues),
     };
   } catch (error) {
     return createErrorResult(connection, sql, getErrorMessage(error), roundElapsed(start));
   }
 }
 
-function getSqliteCount(database: initSqlJs.Database, sql: string): number {
-  const result = database.exec(toCountSql(sql))[0];
+function getSqliteCount(database: initSqlJs.Database, sql: string, variableValues: Record<string, unknown>): number {
+  const compiled = compileQuery(sql, variableValues, 'sqlite');
+  const result = executeSqliteStatement(database, toCountSql(compiled.sql), compiled.params)[0];
   const value = result?.values[0]?.[0];
   return normalizeCount(value);
 }
 
 async function executeMysql(
   connection: ConnectionConfig,
-  sql: string,
+  query: NormalizedQueryInput,
   options: QueryRunnerOptions,
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult[]> {
-  const statements = splitSqlStatements(sql);
+  const statements = splitSqlStatements(query.sql);
   if (statements.length === 0) {
-    return [createErrorResult(connection, sql, 'No SQL statement to execute.', 0)];
+    return [createErrorResult(connection, query.sql, 'No SQL statement to execute.', 0)];
   }
 
   let database: mysql.Connection | undefined;
@@ -227,22 +247,24 @@ async function executeMysql(
     });
 
     if (statements.length === 1 && isPageableSelect(statements[0])) {
-      results.push(await executeMysqlPage(database, connection, statements[0], 1, getResultPageSize(executionOptions), undefined, queryTimeoutMs));
+      results.push(await executeMysqlPage(database, connection, statements[0], query.variableValues, 1, getResultPageSize(executionOptions), undefined, queryTimeoutMs));
       return results;
     }
 
     for (const statement of statements) {
       const start = performance.now();
       try {
-        const [rows, fields] = await database.query({ sql: statement, timeout: queryTimeoutMs });
-        results.push(toMysqlResult(connection, statement, rows, fields, roundElapsed(start)));
+        const compiled = compileQuery(statement, query.variableValues, 'mysql');
+        const [rows, fields] = await database.query({ sql: compiled.sql, timeout: queryTimeoutMs }, compiled.params);
+        const result = toMysqlResult(connection, statement, rows, fields, roundElapsed(start));
+        results.push(result);
       } catch (error) {
         results.push(createErrorResult(connection, statement, getErrorMessage(error), roundElapsed(start)));
         break;
       }
     }
   } catch (error) {
-    return [createErrorResult(connection, sql, getErrorMessage(error), 0)];
+    return [createErrorResult(connection, query.sql, getErrorMessage(error), 0)];
   } finally {
     await database?.end();
   }
@@ -270,7 +292,7 @@ async function fetchMysqlPage(
       multipleStatements: false,
       connectTimeout: queryTimeoutMs,
     });
-    return executeMysqlPage(database, connection, request.sql, request.page, request.pageSize, request.totalRows, queryTimeoutMs);
+    return await executeMysqlPage(database, connection, request.sql, request.variableValues ?? {}, request.page, request.pageSize, request.totalRows, queryTimeoutMs);
   } catch (error) {
     return createErrorResult(connection, request.sql, getErrorMessage(error), 0);
   } finally {
@@ -282,6 +304,7 @@ async function executeMysqlPage(
   database: mysql.Connection,
   connection: ConnectionConfig,
   sql: string,
+  variableValues: Record<string, unknown>,
   page: number,
   pageSize: number,
   knownTotalRows: number | undefined,
@@ -290,32 +313,36 @@ async function executeMysqlPage(
   const start = performance.now();
 
   try {
-    const totalRows = knownTotalRows ?? await getMysqlCount(database, sql, queryTimeoutMs);
-    const [rows, fields] = await database.query({ sql: toPageSql(sql, page, pageSize), timeout: queryTimeoutMs });
+    const compiled = compileQuery(sql, variableValues, 'mysql');
+    const totalRows = knownTotalRows ?? await getMysqlCount(database, sql, variableValues, queryTimeoutMs);
+    const [rows, fields] = await database.query({ sql: toPageSql(compiled.sql, page, pageSize), timeout: queryTimeoutMs }, compiled.params);
+    const result = toMysqlResult(connection, sql, rows, fields, roundElapsed(start));
+
     return {
-      ...toMysqlResult(connection, sql, rows, fields, roundElapsed(start)),
+      ...result,
       rowCount: totalRows,
-      pagination: toPagination(sql, page, pageSize, totalRows),
+      pagination: toPagination(sql, page, pageSize, totalRows, variableValues),
     };
   } catch (error) {
     return createErrorResult(connection, sql, getErrorMessage(error), roundElapsed(start));
   }
 }
 
-async function getMysqlCount(database: mysql.Connection, sql: string, queryTimeoutMs: number): Promise<number> {
-  const [rows] = await database.query({ sql: toCountSql(sql), timeout: queryTimeoutMs });
+async function getMysqlCount(database: mysql.Connection, sql: string, variableValues: Record<string, unknown>, queryTimeoutMs: number): Promise<number> {
+  const compiled = compileQuery(sql, variableValues, 'mysql');
+  const [rows] = await database.query({ sql: toCountSql(compiled.sql), timeout: queryTimeoutMs }, compiled.params);
   return normalizeCount((rows as Array<Record<string, unknown>>)[0]?.total_count);
 }
 
 async function executePostgresql(
   connection: ConnectionConfig,
-  sql: string,
+  query: NormalizedQueryInput,
   options: QueryRunnerOptions,
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult[]> {
-  const statements = splitSqlStatements(sql);
+  const statements = splitSqlStatements(query.sql);
   if (statements.length === 0) {
-    return [createErrorResult(connection, sql, 'No SQL statement to execute.', 0)];
+    return [createErrorResult(connection, query.sql, 'No SQL statement to execute.', 0)];
   }
 
   const queryTimeoutMs = normalizePositiveInteger(executionOptions.queryTimeoutMs, 30000);
@@ -335,17 +362,18 @@ async function executePostgresql(
     await client.connect();
 
     if (statements.length === 1 && isPageableSelect(statements[0])) {
-      results.push(await executePostgresqlPage(client, connection, statements[0], 1, getResultPageSize(executionOptions), undefined));
+      results.push(await executePostgresqlPage(client, connection, statements[0], query.variableValues, 1, getResultPageSize(executionOptions), undefined));
       return results;
     }
 
     for (const statement of statements) {
       const start = performance.now();
       try {
-        const result = await client.query(statement);
+        const compiled = compileQuery(statement, query.variableValues, 'postgresql');
+        const result = await client.query(compiled.sql, compiled.params);
         const columns = result.fields.map((field): QueryColumn => ({
           name: field.name,
-          type: String(field.dataTypeID),
+          type: normalizePostgresqlColumnType(field.dataTypeID),
         }));
         const rows = result.rows.map((row) => columns.map((column) => normalizeValue(row[column.name])));
 
@@ -362,7 +390,7 @@ async function executePostgresql(
       }
     }
   } catch (error) {
-    return [createErrorResult(connection, sql, getErrorMessage(error), 0)];
+    return [createErrorResult(connection, query.sql, getErrorMessage(error), 0)];
   } finally {
     await client.end().catch(() => undefined);
   }
@@ -390,7 +418,7 @@ async function fetchPostgresqlPage(
 
   try {
     await client.connect();
-    return executePostgresqlPage(client, connection, request.sql, request.page, request.pageSize, request.totalRows);
+    return await executePostgresqlPage(client, connection, request.sql, request.variableValues ?? {}, request.page, request.pageSize, request.totalRows);
   } catch (error) {
     return createErrorResult(connection, request.sql, getErrorMessage(error), 0);
   } finally {
@@ -402,6 +430,7 @@ async function executePostgresqlPage(
   client: Client,
   connection: ConnectionConfig,
   sql: string,
+  variableValues: Record<string, unknown>,
   page: number,
   pageSize: number,
   knownTotalRows: number | undefined,
@@ -409,11 +438,12 @@ async function executePostgresqlPage(
   const start = performance.now();
 
   try {
-    const totalRows = knownTotalRows ?? await getPostgresqlCount(client, sql);
-    const result = await client.query(toPageSql(sql, page, pageSize));
+    const compiled = compileQuery(sql, variableValues, 'postgresql');
+    const totalRows = knownTotalRows ?? await getPostgresqlCount(client, sql, variableValues);
+    const result = await client.query(toPageSql(compiled.sql, page, pageSize), compiled.params);
     const columns = result.fields.map((field): QueryColumn => ({
       name: field.name,
-      type: String(field.dataTypeID),
+      type: normalizePostgresqlColumnType(field.dataTypeID),
     }));
     const rows = result.rows.map((row) => columns.map((column) => normalizeValue(row[column.name])));
 
@@ -422,17 +452,19 @@ async function executePostgresqlPage(
       columns,
       rows,
       rowCount: totalRows,
-      pagination: toPagination(sql, page, pageSize, totalRows),
+      pagination: toPagination(sql, page, pageSize, totalRows, variableValues),
     };
   } catch (error) {
     return createErrorResult(connection, sql, getErrorMessage(error), roundElapsed(start));
   }
 }
 
-async function getPostgresqlCount(client: Client, sql: string): Promise<number> {
-  const result = await client.query(toCountSql(sql));
+async function getPostgresqlCount(client: Client, sql: string, variableValues: Record<string, unknown>): Promise<number> {
+  const compiled = compileQuery(sql, variableValues, 'postgresql');
+  const result = await client.query(toCountSql(compiled.sql), compiled.params);
   return normalizeCount(result.rows[0]?.total_count);
 }
+
 
 function toMysqlResult(
   connection: ConnectionConfig,
@@ -446,7 +478,7 @@ function toMysqlResult(
     : [];
   const columns = fieldList.map((field): QueryColumn => ({
     name: field.name,
-    type: String(field.type),
+    type: normalizeMysqlColumnType(field.type),
   }));
 
   if (Array.isArray(rows)) {
@@ -476,11 +508,99 @@ function toMysqlResult(
   };
 }
 
+function normalizeMysqlColumnType(type: number | undefined): string | undefined {
+  if (type === undefined) {
+    return undefined;
+  }
+  return type === 245 ? 'json' : String(type);
+}
+
+function normalizePostgresqlColumnType(type: number): string {
+  if (type === 114) {
+    return 'json';
+  }
+  if (type === 3802) {
+    return 'jsonb';
+  }
+  if (type === 199) {
+    return 'json[]';
+  }
+  if (type === 3807) {
+    return 'jsonb[]';
+  }
+  return String(type);
+}
+
 async function getSqlJs(): Promise<initSqlJs.SqlJsStatic> {
   sqlJsPromise ??= initSqlJs({
     locateFile: (fileName) => require.resolve(`sql.js/dist/${fileName}`),
   });
   return sqlJsPromise;
+}
+
+function normalizeQueryInput(query: QueryInput): NormalizedQueryInput {
+  if (typeof query === 'string') {
+    return {
+      sql: query,
+      variableValues: {},
+    };
+  }
+
+  return {
+    sql: query.sql,
+    variableValues: query.variableValues ?? {},
+  };
+}
+
+async function persistSqliteDatabase(databasePath: string, database: initSqlJs.Database): Promise<void> {
+  await fs.promises.mkdir(path.dirname(databasePath), { recursive: true });
+  const tempPath = path.join(
+    path.dirname(databasePath),
+    `.${path.basename(databasePath)}.${process.pid}.${Date.now()}.tmp`,
+  );
+
+  try {
+    await fs.promises.writeFile(tempPath, Buffer.from(database.export()));
+    await fs.promises.rename(tempPath, databasePath);
+  } catch (error) {
+    await fs.promises.rm(tempPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+function compileQuery(
+  sql: string,
+  variableValues: Record<string, unknown>,
+  dialect: SqlVariableDialect,
+): { sql: string; params: unknown[] } {
+  return compileSqlVariables(sql, variableValues, dialect);
+}
+
+function executeSqliteStatement(
+  database: initSqlJs.Database,
+  sql: string,
+  params: unknown[],
+): initSqlJs.QueryExecResult[] {
+  if (params.length === 0) {
+    return database.exec(sql);
+  }
+
+  const statement = database.prepare(sql);
+  try {
+    statement.bind(params as initSqlJs.BindParams);
+    const columns = statement.getColumnNames();
+    const values: initSqlJs.SqlValue[][] = [];
+
+    while (statement.step()) {
+      values.push(statement.get());
+    }
+
+    return columns.length > 0
+      ? [{ columns, values }]
+      : [];
+  } finally {
+    statement.free();
+  }
 }
 
 function resultBase(
@@ -571,10 +691,17 @@ function toPageSql(sql: string, page: number, pageSize: number): string {
   return `${trimSql(sql)} LIMIT ${pageSize} OFFSET ${offset}`;
 }
 
-function toPagination(sql: string, page: number, pageSize: number, totalRows: number): QueryResult['pagination'] {
+function toPagination(
+  sql: string,
+  page: number,
+  pageSize: number,
+  totalRows: number,
+  variableValues: Record<string, unknown> = {},
+): QueryResult['pagination'] {
   return {
     mode: 'server',
     sourceSql: sql,
+    variableValues: Object.keys(variableValues).length > 0 ? variableValues : undefined,
     page,
     pageSize,
     totalRows,

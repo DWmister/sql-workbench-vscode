@@ -334,7 +334,7 @@
 
     .roadmap {
       display: grid;
-      grid-template-columns: repeat(5, minmax(190px, 1fr));
+      grid-template-columns: repeat(3, minmax(240px, 1fr));
       gap: 14px;
       align-items: stretch;
     }
@@ -367,6 +367,10 @@
 
     .phase[data-phase="v0.2"] .phase-head {
       background: var(--amber-soft);
+    }
+
+    .phase[data-phase="v0.3"] .phase-head {
+      background: #d4e3f4;
     }
 
     .phase[data-phase="v1.0"] .phase-head {
@@ -454,6 +458,70 @@
       border-radius: 50%;
       background: var(--teal);
     }
+
+    .audit {
+      border: 3px solid var(--line);
+      border-radius: var(--radius);
+      background: #fffdf7;
+      box-shadow: var(--shadow);
+      overflow-x: auto;
+    }
+
+    .audit table {
+      width: 100%;
+      min-width: 860px;
+      border-collapse: collapse;
+    }
+
+    .audit th,
+    .audit td {
+      padding: 13px 14px;
+      border-right: 1px solid rgba(25, 23, 20, 0.22);
+      border-bottom: 1px solid rgba(25, 23, 20, 0.22);
+      text-align: left;
+      vertical-align: top;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .audit th:last-child,
+    .audit td:last-child {
+      border-right: 0;
+    }
+
+    .audit tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .audit th {
+      background: var(--ink);
+      color: var(--paper);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .audit td:first-child {
+      width: 150px;
+      font-weight: 900;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px 8px;
+      color: var(--ink);
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .status.done { background: var(--green-soft); }
+    .status.more { background: var(--teal-soft); }
+    .status.moved { background: var(--amber-soft); }
+    .status.cancelled { background: var(--red-soft); }
 
     .board-grid {
       display: grid;
@@ -802,6 +870,7 @@
         <button class="active" type="button" data-filter="all">全部</button>
         <button type="button" data-filter="v0.1">v0.1 MVP</button>
         <button type="button" data-filter="v0.2">v0.2 增强</button>
+        <button type="button" data-filter="v0.3">v0.3 下一步</button>
         <button type="button" data-filter="v1.0">v1.0 IDE</button>
         <button type="button" data-filter="v1.5">v1.5 高级</button>
         <button type="button" data-filter="v2.0">v2.0 全栈</button>
@@ -810,11 +879,11 @@
 
     <section class="hero">
       <div class="brief">
-        <div class="eyebrow">策略：Premium 能力免费化，本地优先</div>
-        <h1>先做一个能天天用的数据库插件，再扩成一站式数据工作台。</h1>
+        <div class="eyebrow">实施校准 · 更新于 2026-07-10</div>
+        <h1>v0.1 建立查询闭环，v0.2 把高频效率能力补齐。</h1>
         <p class="hero-copy">
-          路线图不以“支持 40+ 数据源”为第一目标，而以真实开发路径推进：
-          连接、Schema、SQL、结果表格先稳定；再补导出、编辑、Hover、变量；最后进入 ER、Mock、结构对比、SSH、Service 面板。
+          这份路线图已经按当前代码和发布记录重新校准。连接、SQL、只读结果是 v0.1 基线；
+          v0.2 已交付 CSV / JSON / XLSX、变量、Workspace 连接、完整表 DDL 和文件绑定恢复，并固化只读安全边界。
         </p>
         <div class="north-star">
           <div class="metric">
@@ -842,32 +911,56 @@
             <span class="num">1</span>
             <div>
               <b>先做窄，但要闭环</b>
-              <p>v0.1 只做 MySQL / PostgreSQL / SQLite，但连接、Schema、SQL、结果、历史必须能顺畅串起来。</p>
+              <p>v0.1 聚焦 MySQL / PostgreSQL / SQLite，先完成连接、Schema、SQL 和只读结果闭环；查询历史后移。</p>
             </div>
           </li>
           <li>
             <span class="num">2</span>
             <div>
               <b>免费替代 Premium 高频点</b>
-              <p>无限连接、CSV/JSON 导出、JSON 结果、Workspace 连接、DDL Hover 是 v0.2 的优先收益点。</p>
+              <p>v0.2 已交付 CSV / JSON / XLSX、JSON 结果、Workspace 连接、完整表 DDL、变量与 CodeLens。</p>
             </div>
           </li>
           <li>
             <span class="num">3</span>
             <div>
-              <b>安全默认值不可让步</b>
-              <p>敏感信息不进明文配置，危险 SQL 需要确认，AI 执行查询必须由用户触发。</p>
+              <b>所有写入都要看得见</b>
+              <p>结果网格和表属性永久只读。修改数据或结构必须通过用户可审阅、可执行的 SQL。</p>
             </div>
           </li>
           <li>
             <span class="num">4</span>
             <div>
-              <b>Service 面板延后</b>
-              <p>Redis、MongoDB、SSH、Docker 价值高，但会分散主线。先把数据库 IDE 做扎实。</p>
+              <b>ER 与 Service 面板延后</b>
+              <p>当前优先增强 SQL、结果、导出和表属性；ER 图进入 v1.5，Redis、SSH、Docker 等能力进入长期路线。</p>
             </div>
           </li>
         </ol>
       </aside>
+    </section>
+
+    <section class="section" aria-labelledby="audit-title">
+      <div class="section-title">
+        <h2 id="audit-title">0.1 / 0.2 实施差异</h2>
+        <p>把原计划与实际交付分开记录。后移事项保留价值，取消事项则不再占用后续版本预期。</p>
+      </div>
+      <div class="audit">
+        <table>
+          <thead>
+            <tr><th>能力</th><th>原路线图</th><th>当前实现</th><th>状态 / 归档</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>v0.1 查询闭环</td><td>三类数据库、连接、Schema、原生 SQL、分页结果</td><td>核心闭环已经交付；Schema 先覆盖连接、表和列</td><td><span class="status done">已交付</span></td></tr>
+            <tr><td>查询历史</td><td>计划进入 v0.1</td><td>当前尚未实现</td><td><span class="status moved">后移 v0.3.x</span></td></tr>
+            <tr><td>Schema 深度</td><td>Database / Schema / Table / View / Column 完整层级</td><td>当前以连接、表、列为主</td><td><span class="status moved">后移 v0.3.x</span></td></tr>
+            <tr><td>v0.2 导出</td><td>CSV / JSON，当前页与全部</td><td>增加 XLSX、统一弹框、范围选择、全量上限提示</td><td><span class="status more">超出计划</span></td></tr>
+            <tr><td>表结构</td><td>DDL Hover 轻量摘要</td><td>增加 Columns / DDL、三库完整 DDL、着色、复制、刷新与重试</td><td><span class="status more">超出计划</span></td></tr>
+            <tr><td>SQL 编辑效率</td><td>变量、CodeLens、连接恢复</td><td>增加每文件绑定、移动/重命名指纹恢复和完整个人连接编辑</td><td><span class="status more">超出计划</span></td></tr>
+            <tr><td>结果单元格编辑</td><td>早期曾参考竞品规划</td><td>仅 JSON / JSONB 提供只读 Format、Copy、Close</td><td><span class="status cancelled">永久取消</span></td></tr>
+            <tr><td>ER 图</td><td>早期长期路线包含</td><td>当前阶段不实施，保留在高级生产力路线</td><td><span class="status moved">后移 v1.5</span></td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <section class="section" aria-labelledby="roadmap-title">
@@ -878,7 +971,7 @@
       <div class="roadmap">
         <article class="phase" data-phase="v0.1">
           <div class="phase-head">
-            <div class="phase-kicker"><span>v0.1</span><span>第 1-6 周</span></div>
+            <div class="phase-kicker"><span>v0.1</span><span>已交付</span></div>
             <h3>MVP 查询闭环</h3>
           </div>
           <div class="phase-body">
@@ -890,40 +983,65 @@
             </div>
             <ul class="phase-list">
               <li>Activity Bar + Database TreeView</li>
-              <li>连接 CRUD、分组、本地持久化、无限连接</li>
-              <li>Schema 树：库、Schema、表、视图、列</li>
-              <li>点击 Table 右侧显示列信息，左侧展开 Table 显示列</li>
+              <li>连接新增、测试、删除、分组、本地持久化、无限连接</li>
+              <li>SecretStorage 保存密码，连接树展示表与列</li>
+              <li>点击 Table 在当前编辑栏显示只读列信息</li>
               <li>结果表格与列信息只读，所有修改必须通过 SQL</li>
               <li>SQL 写在 VS Code 原生 .sql 编辑器中</li>
               <li>状态栏显示并切换当前连接，QuickPick 标注 Current</li>
               <li>执行当前语句 / 选区 / 全部语句</li>
               <li>结果 Webview：分页、错误、耗时、影响行数</li>
               <li>基础 SQL 提示：关键字、片段、表名、字段名</li>
-              <li>查询历史与危险 SQL 二次确认</li>
             </ul>
           </div>
         </article>
 
         <article class="phase" data-phase="v0.2">
           <div class="phase-head">
-            <div class="phase-kicker"><span>v0.2</span><span>增强版</span></div>
+            <div class="phase-kicker"><span>v0.2</span><span>已交付 · 超额</span></div>
             <h3>免费化高频 Premium</h3>
           </div>
           <div class="phase-body">
             <p class="phase-goal">把竞品最容易让用户付费的效率点，变成我们的默认体验。</p>
             <div class="chips">
               <span class="chip">导出</span>
-              <span class="chip">编辑</span>
-              <span class="chip">Hover</span>
+              <span class="chip">完整 DDL</span>
+              <span class="chip">SQL 效率</span>
             </div>
             <ul class="phase-list">
-              <li>CSV / JSON 导出，支持当前页与全量结果</li>
-              <li>JSON 结果模式与长文本弹窗</li>
-              <li>主键识别、行内编辑、保存和回滚</li>
+              <li>CSV / JSON / XLSX 导出弹框，支持当前页与全部数据</li>
+              <li>Table / JSON 结果模式；JSON / JSONB 只读查看器</li>
               <li>SQL 变量：执行时输入与工作区配置</li>
-              <li>Workspace 级连接配置 + SecretStorage</li>
-              <li>DDL Hover 简版与 CodeLens Run 增强</li>
-              <li>跨窗口恢复连接绑定，移动文件后提示重绑</li>
+              <li>.vscode/sql-workbench.json + SecretStorage</li>
+              <li>个人连接完整编辑，未填新密码时保留原密码</li>
+              <li>轻量 DDL Hover、CodeLens Run、危险 SQL 确认</li>
+              <li>Columns / DDL 表属性，完整 DDL 着色、复制、刷新、重试</li>
+              <li>每文件连接绑定，移动或重命名后通过指纹恢复</li>
+              <li>结果和表属性默认在当前编辑栏打开</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="phase" data-phase="v0.3">
+          <div class="phase-head">
+            <div class="phase-kicker"><span>v0.3.x</span><span>下一阶段</span></div>
+            <h3>查询效率收口</h3>
+          </div>
+          <div class="phase-body">
+            <p class="phase-goal">补齐已确认但没有进入 0.1 / 0.2 的日常效率能力，并继续压低安装和恢复成本。</p>
+            <div class="chips">
+              <span class="chip">History</span>
+              <span class="chip">Schema</span>
+              <span class="chip">DX</span>
+            </div>
+            <ul class="phase-list">
+              <li>查询历史：按连接记录 SQL、耗时、时间并可重新打开</li>
+              <li>补充 Database / Schema / View 层级与元数据刷新</li>
+              <li>结果查看、分页和错误恢复继续优化</li>
+              <li>自定义执行快捷键</li>
+              <li>连接配置导入导出</li>
+              <li>依赖裁剪与 VSIX 体积优化</li>
+              <li>表数据继续通过 SQL 查询，不新增独立 Data 页签</li>
             </ul>
           </div>
         </article>
@@ -936,15 +1054,14 @@
           <div class="phase-body">
             <p class="phase-goal">覆盖表结构、测试数据、备份导入，把插件从查询器升级为数据库 IDE。</p>
             <div class="chips">
-              <span class="chip">表设计</span>
-              <span class="chip">ER</span>
+              <span class="chip">DDL 辅助</span>
               <span class="chip">Mock</span>
+              <span class="chip">Backup</span>
             </div>
             <ul class="phase-list">
-              <li>表设计器：列、索引、主键、外键</li>
-              <li>DDL 预览，确认后执行</li>
-              <li>ER 图基础版：外键关系、自动布局、跳转</li>
-              <li>Mock 数据生成，按列类型推荐规则</li>
+              <li>DDL 辅助：列、索引、主键、外键</li>
+              <li>生成 DDL 到 SQL 编辑器，由用户审阅和执行</li>
+              <li>Mock 数据生成，按列类型推荐并生成 INSERT SQL</li>
               <li>调用 mysqldump / pg_dump 做备份恢复</li>
               <li>SQL Server、DuckDB、ClickHouse、Redis 基础管理</li>
             </ul>
@@ -959,13 +1076,15 @@
           <div class="phase-body">
             <p class="phase-goal">面向复杂环境、迁移、跳板机和 AI 辅助，把生产场景补齐。</p>
             <div class="chips">
+              <span class="chip">ER</span>
               <span class="chip">结构对比</span>
               <span class="chip">SSH Tunnel</span>
               <span class="chip">AI</span>
             </div>
             <ul class="phase-list">
               <li>完整 DDL Hover 与跳转定义</li>
-              <li>ER 图导出图片，Schema 文档生成</li>
+              <li>Schema 文档生成</li>
+              <li>ER 图：主外键关系、自动布局、缩放、小地图、节点跳转和图片导出</li>
               <li>结构对比：生成迁移 SQL，默认不自动执行</li>
               <li>SSH 隧道、本地端口自动分配与释放</li>
               <li>HTTP / SOCKS 代理</li>
@@ -1018,18 +1137,18 @@
             </div>
             <div class="matrix-cell">
               <h4>SQL Runner + Result</h4>
-              <p>状态栏连接切换、执行语句、分页表格、错误状态、历史记录。</p>
+              <p>状态栏连接切换、执行语句、分页表格和错误状态，v0.1 已交付。</p>
             </div>
           </div>
           <div class="matrix-row">
             <div class="matrix-cell matrix-label">P1<br />高频收益</div>
             <div class="matrix-cell">
-              <h4>Editable Grid</h4>
-              <p>主键识别、行内编辑、保存与回滚。</p>
+              <h4>Read-only Viewer</h4>
+              <p>Table / JSON 结果、JSON / JSONB 查看器，坚持 SQL-only 写入。</p>
             </div>
             <div class="matrix-cell">
               <h4>Export</h4>
-              <p>CSV / JSON 导出，优先免费替代竞品 Premium。</p>
+              <p>CSV / JSON / XLSX，格式和范围统一选择。</p>
             </div>
             <div class="matrix-cell">
               <h4>Workspace Config</h4>
@@ -1037,29 +1156,29 @@
             </div>
           </div>
           <div class="matrix-row">
-            <div class="matrix-cell matrix-label">P2<br />IDE 化</div>
+            <div class="matrix-cell matrix-label">P2<br />下一阶段</div>
             <div class="matrix-cell">
-              <h4>Table Designer</h4>
-              <p>列、索引、外键、DDL 预览，先覆盖 MySQL / PostgreSQL。</p>
+              <h4>Query History</h4>
+              <p>按连接记录 SQL、耗时和时间，并支持重新打开。</p>
             </div>
             <div class="matrix-cell">
-              <h4>ER + Mock</h4>
-              <p>理解库结构、生成测试数据，增强迁移与开发效率。</p>
+              <h4>Schema Depth</h4>
+              <p>补充 Database / Schema / View 层级与缓存刷新。</p>
             </div>
             <div class="matrix-cell">
-              <h4>Backup</h4>
-              <p>调用系统 CLI，保留透明日志，避免黑箱备份。</p>
+              <h4>Packaging + DX</h4>
+              <p>快捷键、连接配置导入导出、依赖裁剪和 VSIX 体积优化。</p>
             </div>
           </div>
           <div class="matrix-row">
             <div class="matrix-cell matrix-label">P3<br />全栈扩展</div>
             <div class="matrix-cell">
-              <h4>Service Panel</h4>
-              <p>Redis、MongoDB、ElasticSearch、Kafka、RabbitMQ。</p>
+              <h4>ER + Schema Docs</h4>
+              <p>主外键关系、自动布局、导航、图片导出和 Schema 文档。</p>
             </div>
             <div class="matrix-cell">
-              <h4>Remote Ops</h4>
-              <p>SSH、SFTP、端口转发、Docker。</p>
+              <h4>Service + Remote</h4>
+              <p>Redis、MongoDB、SSH、SFTP、端口转发和 Docker。</p>
             </div>
             <div class="matrix-cell">
               <h4>AI + Sync</h4>
@@ -1079,19 +1198,19 @@
               <span class="tag">v0.1</span>
             </li>
             <li>
-              <div><b>CSV / JSON 导出、JSON 视图</b><span>最常用的排查与交付能力，v0.2 免费。</span></div>
+              <div><b>CSV / JSON / XLSX、JSON 视图</b><span>格式、范围和大数据量提示在 v0.2 免费交付。</span></div>
               <span class="tag">v0.2</span>
             </li>
             <li>
-              <div><b>Workspace 连接、DDL Hover</b><span>团队协作和 SQL 阅读效率，v0.2 起步。</span></div>
+              <div><b>Workspace 连接、完整表 DDL</b><span>共享非敏感配置，表属性支持复制、刷新和重试。</span></div>
               <span class="tag">v0.2</span>
             </li>
             <li>
-              <div><b>ER 图、Mock 数据</b><span>开发生产力增强，v1.0 进入主线。</span></div>
+              <div><b>DDL 辅助、Mock SQL</b><span>只生成可审阅 SQL，不提供隐藏的直接写入。</span></div>
               <span class="tag">v1.0</span>
             </li>
             <li>
-              <div><b>结构对比、代理、SSH 隧道</b><span>复杂生产环境能力，v1.5 做得稳再放出。</span></div>
+              <div><b>ER 图、结构对比、代理、SSH 隧道</b><span>复杂结构理解与生产环境能力在 v1.5 进入主线。</span></div>
               <span class="tag">v1.5</span>
             </li>
             <li>
@@ -1138,7 +1257,7 @@
           </div>
           <div class="arch-node">
             <strong>Webview Apps</strong>
-            <span>Result Grid、Table Designer、ER Diagram、Mock Generator、Manager Dashboard。</span>
+            <span>Result Viewer、Export Dialog、Table Properties、Connection Form，以及未来的 DDL / Mock SQL Generator 和 ER Diagram。</span>
           </div>
           <div class="arch-node">
             <strong>External Tools</strong>
@@ -1150,45 +1269,45 @@
 
     <section class="section">
       <div class="section-title">
-        <h2>6 周 MVP 里程碑</h2>
-        <p>这条线只服务 v0.1，不被 ER、SSH、Docker 等后续能力干扰。</p>
+        <h2>版本落地复盘</h2>
+        <p>0.1 和 0.2 已按实际代码归档；未完成项进入明确版本，不再写成已经具备。</p>
       </div>
       <div class="milestones">
         <div class="week">
-          <strong>Week 1</strong>
-          <h4>扩展外壳</h4>
-          <p>Activity Bar、TreeView、命令注册、设置项，能显示空连接树。</p>
+          <strong>v0.1 · 已交付</strong>
+          <h4>连接与驱动</h4>
+          <p>MySQL / PostgreSQL / SQLite、连接树、分组、测试与 SecretStorage。</p>
         </div>
         <div class="week">
-          <strong>Week 2</strong>
-          <h4>连接管理</h4>
-          <p>新增、编辑、删除连接；SecretStorage；连接测试。</p>
+          <strong>v0.1 · 已交付</strong>
+          <h4>查询闭环</h4>
+          <p>原生 SQL、连接切换、当前/选区/全部执行和只读分页结果。</p>
         </div>
         <div class="week">
-          <strong>Week 3</strong>
-          <h4>Schema Explorer</h4>
-          <p>展开库、Schema、表、视图、列，支持刷新元数据缓存。</p>
+          <strong>v0.2 · 已交付</strong>
+          <h4>结果效率</h4>
+          <p>Table / JSON、CSV / JSON / XLSX、JSON 单元格只读查看。</p>
         </div>
         <div class="week">
-            <strong>Week 4</strong>
-            <h4>SQL Runner</h4>
-          <p>打开 Query，状态栏切换连接，执行选区/当前/全部语句，记录历史和错误。</p>
+            <strong>v0.2 · 已交付</strong>
+            <h4>编辑效率</h4>
+          <p>变量、CodeLens、每文件绑定、指纹恢复、危险 SQL 确认。</p>
         </div>
         <div class="week">
-          <strong>Week 5</strong>
-          <h4>Result Grid</h4>
-          <p>分页表格、复制、执行耗时、影响行数、默认 LIMIT。</p>
+          <strong>v0.2 · 超出计划</strong>
+          <h4>完整表 DDL</h4>
+          <p>Columns / DDL、三库原生结构、语法着色、复制、刷新和重试。</p>
         </div>
         <div class="week">
-          <strong>Week 6</strong>
-          <h4>MVP 验收</h4>
-          <p>真实数据库完成连接、查表、查询、复制、历史回放。</p>
+          <strong>v0.3.x · 下一步</strong>
+          <h4>待补能力</h4>
+          <p>查询历史、Schema/View 层级、快捷键、配置导入导出和体积优化。</p>
         </div>
       </div>
     </section>
 
     <p class="note">
-      验收口径：v0.1 不是“功能最多”，而是“最小闭环足够稳”。当用户能在真实项目里用它完成 80% 日常查库工作，再进入 v0.2 的 Premium 免费化增强。
+      当前验收口径：连接、查结构、执行 SQL、分页查看、JSON 检查和 CSV / JSON / XLSX 导出可以形成日常闭环；结果网格和表属性保持只读，任何数据或结构修改都通过可见 SQL 完成。
     </p>
   </main>
 

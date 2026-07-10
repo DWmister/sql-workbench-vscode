@@ -1,14 +1,18 @@
 import * as vscode from 'vscode';
+import { registerSqlHoverProvider } from './completion/sqlHoverProvider';
 import { registerSqlCompletionProvider } from './completion/sqlCompletionProvider';
+import { ActiveConnectionState, isSqlDocument, type ConnectionResolver } from './connection/activeConnectionState';
 import { ConnectionFormPanel } from './connection/connectionFormPanel';
 import { ConnectionStore } from './connection/connectionStore';
 import { testConnection } from './connection/connectionTester';
+import { WorkspaceConnectionStore } from './connection/workspaceConnectionStore';
 import {
   type ConnectionConfig,
   isConnectionType,
 } from './connection/types';
 import { registerQueryCommands } from './query/commands';
 import { createQueryRunner } from './query/runner';
+import { registerSqlCodeLensProvider } from './query/sqlCodeLensProvider';
 import { createSchemaInspector } from './schema/inspector';
 import { TableDetailsPanel } from './schema/tableDetailsPanel';
 import { DatabaseTreeProvider } from './tree/databaseTreeProvider';
@@ -20,23 +24,50 @@ import {
   DatabaseTableTreeItem,
 } from './tree/treeItems';
 
-const ACTIVE_CONNECTION_KEY = 'sqlWorkbench.activeConnectionId';
-
 export function activate(context: vscode.ExtensionContext): void {
   const connectionStore = new ConnectionStore(
     context.globalState,
     context.secrets,
   );
-  const activeConnection = new ActiveConnectionState(context, connectionStore);
-  const getPassword = (connectionId: string) => connectionStore.getPassword(connectionId);
+  const workspaceConnectionStore = new WorkspaceConnectionStore();
+  const connectionRegistry = new ConnectionRegistry(connectionStore, workspaceConnectionStore);
+  const activeConnection = new ActiveConnectionState(context, connectionRegistry);
+  const getPassword = async (connectionId: string) => {
+    const password = await connectionStore.getPassword(connectionId);
+    if (password !== undefined || !isWorkspaceConnectionId(connectionId)) {
+      return password;
+    }
+
+    const connection = await connectionRegistry.get(connectionId);
+    if (!connection || connection.type === 'sqlite') {
+      return undefined;
+    }
+
+    const entered = await vscode.window.showInputBox({
+      title: 'Workspace Connection Password',
+      prompt: `Password for ${connection.name}`,
+      password: true,
+      ignoreFocusOut: true,
+    });
+
+    if (entered === undefined) {
+      return undefined;
+    }
+
+    await connectionStore.savePassword(connectionId, entered);
+    return entered;
+  };
   const schemaInspector = createSchemaInspector({ getPassword });
-  const tableDetailsPanel = new TableDetailsPanel(context.extensionUri);
+  const tableDetailsPanel = new TableDetailsPanel(context.extensionUri, {
+    loadDdl: (table) => schemaInspector.getTableDdl(table),
+  });
   const treeProvider = new DatabaseTreeProvider({
     connectionStore: {
       async list() {
         const connections = await connectionStore.list();
-        const activeId = activeConnection.getId();
-        return connections.map((connection) => ({
+        const workspaceConnections = await workspaceConnectionStore.list();
+        const activeId = activeConnection.getId(getActiveSqlDocument());
+        return [...connections, ...workspaceConnections].map((connection) => ({
           ...connection,
           status: connection.id === activeId ? 'connected' : 'disconnected',
         }));
@@ -46,13 +77,24 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   const statusBar = new ActiveConnectionStatusBar(activeConnection);
   const connectionFormPanel = new ConnectionFormPanel(context.extensionUri, {
-    test: testConnection,
-    save: async (input) => {
+    test: async (input, editingId) => {
+      const password = input.password
+        ?? (editingId ? await connectionStore.getPassword(editingId) : undefined);
+      return testConnection({ ...input, password });
+    },
+    save: async (input, editingId) => {
       const { password, ...config } = input;
+      if (editingId) {
+        const updated = await connectionStore.update(editingId, config);
+        if (password !== undefined) {
+          await connectionStore.savePassword(editingId, password);
+        }
+        return updated;
+      }
       return connectionStore.create(config, password || undefined);
     },
     onSaved: async (connection) => {
-      await activeConnection.set(connection.id);
+      await activeConnection.set(connection.id, getActiveSqlDocument());
       treeProvider.refresh();
       await statusBar.refresh();
     },
@@ -65,6 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     statusBar,
     connectionFormPanel,
+    tableDetailsPanel,
     registerCommand(DatabaseTreeCommandIds.addConnection, () => {
       connectionFormPanel.show();
     }),
@@ -75,6 +118,11 @@ export function activate(context: vscode.ExtensionContext): void {
     registerCommand(DatabaseTreeCommandIds.deleteConnection, async (argument?: unknown) => {
       const target = await resolveConnectionArgument(argument, activeConnection);
       if (!target) {
+        return;
+      }
+
+      if (isWorkspaceConnection(target)) {
+        vscode.window.showInformationMessage('Workspace connections are read-only. Edit .vscode/sql-workbench.json to change this connection.');
         return;
       }
 
@@ -90,8 +138,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
       await connectionStore.delete(target.id);
       if (activeConnection.getId() === target.id) {
-        await activeConnection.set(undefined);
+        await activeConnection.set(undefined, getActiveSqlDocument());
       }
+      await activeConnection.deleteConnectionBindings(target.id);
       treeProvider.refresh();
       await statusBar.refresh();
     }),
@@ -101,26 +150,17 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const nextName = await vscode.window.showInputBox({
-        title: 'Edit Connection Name',
-        prompt: 'MVP edit flow only supports renaming. Full connection editing comes next.',
-        value: target.name,
-        ignoreFocusOut: true,
-        validateInput: (value) => value.trim() ? undefined : 'Connection name is required.',
-      });
-
-      if (!nextName) {
+      if (isWorkspaceConnection(target)) {
+        vscode.window.showInformationMessage('Workspace connections are read-only. Edit .vscode/sql-workbench.json to change this connection.');
         return;
       }
 
-      await connectionStore.update(target.id, { name: nextName });
-      treeProvider.refresh();
-      await statusBar.refresh();
+      connectionFormPanel.show(target);
     }),
     registerCommand(DatabaseTreeCommandIds.switchActiveConnection, async (argument?: unknown) => {
       const connection = extractConnectionArgument(argument);
       if (connection) {
-        await activeConnection.set(connection.id);
+        await activeConnection.set(connection.id, getActiveSqlDocument());
         treeProvider.refresh();
         await statusBar.refresh();
         return;
@@ -131,7 +171,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await activeConnection.set(selected.id);
+      await activeConnection.set(selected.id, getActiveSqlDocument());
       treeProvider.refresh();
       await statusBar.refresh();
     }),
@@ -141,10 +181,10 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await activeConnection.set(target.id);
+      const document = await openQueryDocument(target);
+      await activeConnection.set(target.id, document);
       treeProvider.refresh();
       await statusBar.refresh();
-      await openQueryDocument(target);
     }),
     registerCommand(DatabaseTreeCommandIds.openTableDetails, async (argument?: unknown) => {
       const table = extractTableArgument(argument);
@@ -153,7 +193,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await activeConnection.set(table.connection.id);
+      await activeConnection.set(table.connection.id, getActiveSqlDocument());
       treeProvider.refresh();
       await statusBar.refresh();
 
@@ -171,8 +211,17 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     ...registerQueryCommands(context, {
       runner: createQueryRunner({ getPassword }),
-      resolveConnection: async () => {
-        const current = await activeConnection.get();
+      resolveConnection: async (document) => {
+        if (document) {
+          const restored = await activeConnection.restoreDocumentBinding(document);
+          if (restored) {
+            treeProvider.refresh();
+            await statusBar.refresh();
+            return restored;
+          }
+        }
+
+        const current = await activeConnection.get(document);
         if (current) {
           return current;
         }
@@ -182,7 +231,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return undefined;
         }
 
-        await activeConnection.set(selected.id);
+        await activeConnection.set(selected.id, document ?? getActiveSqlDocument());
         treeProvider.refresh();
         await statusBar.refresh();
         return selected;
@@ -190,7 +239,22 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     registerSqlCompletionProvider({
       schemaInspector,
-      resolveConnection: () => activeConnection.get(),
+      resolveConnection: (document) => activeConnection.get(document),
+    }),
+    registerSqlHoverProvider({
+      schemaInspector,
+      resolveConnection: (document) => activeConnection.get(document),
+    }),
+    registerSqlCodeLensProvider(),
+    vscode.window.onDidChangeActiveTextEditor(async () => {
+      await statusBar.refresh();
+      treeProvider.refresh();
+    }),
+    vscode.workspace.onDidSaveTextDocument(async (document) => {
+      const id = activeConnection.getDocumentBindingId(document);
+      if (id) {
+        await activeConnection.set(id, document);
+      }
     }),
   );
 
@@ -208,27 +272,22 @@ function registerCommand(
   return vscode.commands.registerCommand(command, callback);
 }
 
-class ActiveConnectionState {
+class ConnectionRegistry implements ConnectionResolver {
   constructor(
-    private readonly context: vscode.ExtensionContext,
     private readonly connectionStore: ConnectionStore,
+    private readonly workspaceConnectionStore: WorkspaceConnectionStore,
   ) {}
 
-  public getId(): string | undefined {
-    return this.context.globalState.get<string>(ACTIVE_CONNECTION_KEY);
-  }
-
-  public async get(): Promise<ConnectionConfig | undefined> {
-    const id = this.getId();
-    return id ? this.connectionStore.get(id) : undefined;
+  public async get(id: string): Promise<ConnectionConfig | undefined> {
+    return (await this.connectionStore.get(id))
+      ?? (await this.workspaceConnectionStore.list()).find((connection) => connection.id === id);
   }
 
   public async list(): Promise<ConnectionConfig[]> {
-    return this.connectionStore.list();
-  }
-
-  public async set(id: string | undefined): Promise<void> {
-    await this.context.globalState.update(ACTIVE_CONNECTION_KEY, id);
+    return [
+      ...await this.connectionStore.list(),
+      ...await this.workspaceConnectionStore.list(),
+    ];
   }
 }
 
@@ -245,7 +304,8 @@ class ActiveConnectionStatusBar implements vscode.Disposable {
   }
 
   public async refresh(): Promise<void> {
-    const connection = await this.activeConnection.get();
+    const document = getActiveSqlDocument();
+    const connection = await this.activeConnection.get(document);
     if (!connection) {
       this.item.text = '$(database) DB: none';
       this.item.tooltip = 'Choose Active Connection';
@@ -254,7 +314,9 @@ class ActiveConnectionStatusBar implements vscode.Disposable {
 
     const database = connection.database ?? connection.path ?? connection.type;
     this.item.text = `$(database) ${connection.name}`;
-    this.item.tooltip = `Active connection: ${connection.name} / ${database}`;
+    this.item.tooltip = document
+      ? `Connection for active SQL file or default: ${connection.name} / ${database}`
+      : `Default connection: ${connection.name} / ${database}`;
   }
 
   public dispose(): void {
@@ -277,7 +339,7 @@ async function pickConnection(
     return undefined;
   }
 
-  const activeId = activeConnection.getId();
+  const activeId = activeConnection.getId(getActiveSqlDocument());
   const current = connections.find((connection) => connection.id === activeId);
   const others = connections.filter((connection) => connection.id !== activeId);
   const items: Array<vscode.QuickPickItem & { connection?: ConnectionConfig }> = [];
@@ -368,13 +430,27 @@ function isConnectionLike(value: unknown): value is DatabaseConnection {
     && isConnectionType(candidate.type);
 }
 
-async function openQueryDocument(connection: ConnectionConfig): Promise<void> {
+function isWorkspaceConnection(connection: ConnectionConfig): boolean {
+  return isWorkspaceConnectionId(connection.id);
+}
+
+function isWorkspaceConnectionId(id: string): boolean {
+  return id.startsWith('workspace-');
+}
+
+function getActiveSqlDocument(): vscode.TextDocument | undefined {
+  const document = vscode.window.activeTextEditor?.document;
+  return document && isSqlDocument(document) ? document : undefined;
+}
+
+async function openQueryDocument(connection: ConnectionConfig): Promise<vscode.TextDocument> {
   const database = connection.database ?? connection.path ?? connection.type;
   const document = await vscode.workspace.openTextDocument({
     language: 'sql',
     content: [
       `-- SQL Workbench: ${connection.name} / ${database}`,
-      '-- MVP is SQL-only for writes. Result grids and schema inspectors are read-only.',
+      '-- Result grids and table properties are read-only.',
+      '-- Use SQL for all data and schema changes.',
       '',
       'SELECT *',
       'FROM ',
@@ -384,4 +460,5 @@ async function openQueryDocument(connection: ConnectionConfig): Promise<void> {
   });
 
   await vscode.window.showTextDocument(document, { preview: false });
+  return document;
 }

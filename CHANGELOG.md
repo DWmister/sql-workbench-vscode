@@ -2,6 +2,29 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.0 - 2026-07-09
+
+### Added
+
+- Result view can switch each tabular result between Table and JSON modes.
+- Result export opens an options dialog and supports CSV, JSON, and XLSX for the current page or the full pageable query result.
+- CSV export escapes delimiters, quotes, newlines, and spreadsheet formula prefixes.
+- JSON export preserves numbers, booleans, nulls, and friendly BLOB metadata.
+- JSON/JSONB result columns open a read-only View Cell Value popup with Format, Copy, and Close actions.
+- SQL Results and Table Properties open in the active editor group instead of creating split editors.
+- Result grids and table properties are permanently read-only; all database changes must be executed through SQL.
+- SQL table hover shows a lightweight schema summary with columns, primary keys, and indexes.
+- Read-only table properties add icon-labelled Columns/DDL tabs, theme-aware DDL syntax highlighting, copy, refresh, retry, and stale-request protection for MySQL, PostgreSQL, and SQLite.
+- SQL editors show per-statement CodeLens actions for running a single statement without moving the cursor.
+- SQL execution prompts for `:name` and `$name` variables, with workspace defaults from `sqlWorkbench.variables` and driver parameter binding.
+- Workspace-level connection profiles can be loaded from `.vscode/sql-workbench.json`.
+- Workspace connection files skip profiles with sensitive fields while continuing to load other valid profiles; passwords stay local in VS Code `SecretStorage`.
+- Personal connections can be fully edited from the webview form, preserving saved passwords unless a new password is entered.
+- SQL files can persist their own connection binding; Run, CodeLens, completion, and hover now prefer the active document's connection over the default fallback.
+- Moved or renamed SQL files can restore previous connection bindings when their content fingerprint matches an earlier bound file.
+- Dangerous SQL confirmation now guards `UPDATE` and `DELETE` statements without a real `WHERE` clause across keyboard, Run All, and CodeLens execution.
+- `npm run verify:v0.2` checks SQL parsing/ranges, variables, dangerous SQL detection, workspace connections/SecretStorage, result export serialization, DDL Hover and table DDL, CodeLens, SQL file binding recovery, MySQL/PostgreSQL pagination paths, SQLite schema metadata, read-only JSON cell viewing, and webview behavior/script syntax.
+
 ## 0.1.0 - 2026-07-08
 
 ### Added
@@ -19,4 +42,4 @@ All notable changes to SQL Workbench will be documented in this file.
 
 ### Notes
 
-- Result-cell editing and schema editing through the UI are intentionally out of scope for the MVP.
+- Result-cell and schema editing are intentionally unavailable; all writes must be executed through SQL.

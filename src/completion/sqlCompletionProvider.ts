@@ -32,7 +32,7 @@ const MAX_TABLES_FOR_COLUMN_HINTS = 30;
 const CACHE_TTL_MS = 30_000;
 
 export interface SqlCompletionProviderOptions {
-  resolveConnection: () => Promise<ConnectionConfig | undefined>;
+  resolveConnection: (document?: vscode.TextDocument) => Promise<ConnectionConfig | undefined>;
   schemaInspector: SchemaInspector;
 }
 
@@ -52,7 +52,7 @@ export function registerSqlCompletionProvider(
     {
       async provideCompletionItems(document, position) {
         const items = createKeywordItems();
-        const connection = await options.resolveConnection();
+        const connection = await options.resolveConnection(document);
 
         if (!connection) {
           return items;

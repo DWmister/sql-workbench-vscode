@@ -20,7 +20,7 @@ const screenshots = [
   },
   {
     name: 'schema-view',
-    title: 'Read-only schema inspector',
+    title: 'Read-only table properties and DDL',
     width: 1440,
     height: 900,
     html: renderPage(renderSchemaView()),
@@ -33,17 +33,27 @@ const screenshots = [
     html: renderPage(renderCompletionView()),
   },
 ];
+const requestedNames = process.argv.slice(2);
+const selectedScreenshots = requestedNames.length === 0
+  ? screenshots
+  : screenshots.filter((screenshot) => requestedNames.includes(screenshot.name));
+
+if (selectedScreenshots.length !== (requestedNames.length || screenshots.length)) {
+  const available = screenshots.map((screenshot) => screenshot.name).join(', ');
+  throw new Error(`Unknown screenshot name. Available screenshots: ${available}`);
+}
 
 fs.mkdirSync(imageDir, { recursive: true });
 
-for (const screenshot of screenshots) {
+for (const screenshot of selectedScreenshots) {
   const htmlPath = path.join(tmpDir, `${screenshot.name}.html`);
   const imagePath = path.join(imageDir, `${screenshot.name}.png`);
+  const generatedImagePath = path.join(tmpDir, `${screenshot.name}.png`);
 
   fs.writeFileSync(htmlPath, screenshot.html);
   const chromeArgs = [
     '--headless=new',
-    '--disable-gpu',
+    '--no-sandbox',
     '--hide-scrollbars',
     '--no-first-run',
     '--disable-background-networking',
@@ -55,30 +65,32 @@ for (const screenshot of screenshots) {
     '--metrics-recording-only',
     '--no-default-browser-check',
     '--run-all-compositor-stages-before-draw',
+    '--virtual-time-budget=1500',
     `--user-data-dir=${path.join(tmpDir, `${screenshot.name}-profile`)}`,
     `--window-size=${screenshot.width},${screenshot.height}`,
-    `--screenshot=${imagePath}`,
+    `--screenshot=${generatedImagePath}`,
     `file://${htmlPath}`,
   ];
 
   try {
     execFileSync(chromePath, chromeArgs, {
       stdio: 'ignore',
-      timeout: 20_000,
+      timeout: 8_000,
     });
   } catch (error) {
-    if (!fs.existsSync(imagePath)) {
+    if (!fs.existsSync(generatedImagePath)) {
       throw error;
     }
   }
 
-  const stat = fs.statSync(imagePath);
+  const stat = fs.statSync(generatedImagePath);
   if (stat.size < 10_000) {
     throw new Error(`${screenshot.name}.png looks too small (${stat.size} bytes).`);
   }
+  fs.copyFileSync(generatedImagePath, imagePath);
 }
 
-console.log(`Generated ${screenshots.length} screenshots in ${path.relative(repoRoot, imageDir)}`);
+console.log(`Generated ${selectedScreenshots.length} screenshot${selectedScreenshots.length === 1 ? '' : 's'} in ${path.relative(repoRoot, imageDir)}`);
 
 function renderPage(content) {
   return `<!DOCTYPE html>
@@ -254,6 +266,14 @@ function renderPage(content) {
       color: var(--text);
       border-color: var(--accent);
     }
+    .shot-tab-icon {
+      display: inline-block;
+      width: 18px;
+      font: 700 13px "SFMono-Regular", Consolas, monospace;
+      text-align: center;
+    }
+    .shot-tab-icon.columns { color: #65b7f3; }
+    .shot-tab-icon.ddl { color: #c586c0; font-size: 11px; }
     .btns {
       display: flex;
       justify-content: center;
@@ -408,29 +428,36 @@ function renderConnectionForm() {
 }
 
 function renderSchemaView() {
-  const rows = [
-    ['id', 'varchar(65533)', '65533', '主键id', 'NO', 'YES'],
-    ['std_show_id', 'varchar(65533)', '65533', '标准演出id', 'YES', 'NO'],
-    ['supplier_id', 'varchar(65533)', '65533', '节目供应商id', 'YES', 'NO'],
-    ['biz_code', 'varchar(65533)', '65533', '业务编码(来源)', 'YES', 'NO'],
-    ['show_name', 'varchar(65533)', '65533', '演出名称', 'YES', 'NO'],
-    ['is_show_sponsor', 'tinyint(1)', '1', '冠名是否展示', 'YES', 'NO'],
-    ['poster_url', 'varchar(65533)', '65533', '海报图', 'YES', 'NO'],
+  const ddl = [
+    '<span class="kw">CREATE TABLE</span> <span class="table-name">`biz_show`</span> (',
+    '  <span class="id">`id`</span> varchar(<span class="num">65533</span>) NOT NULL COMMENT <span class="table-name">\'主键id\'</span>,',
+    '  <span class="id">`std_show_id`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'标准演出id\'</span>,',
+    '  <span class="id">`supplier_id`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'节目供应商id\'</span>,',
+    '  <span class="id">`biz_code`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'业务编码(来源)\'</span>,',
+    '  <span class="id">`show_name`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'演出名称\'</span>,',
+    '  <span class="id">`is_show_sponsor`</span> tinyint(<span class="num">1</span>) DEFAULT NULL COMMENT <span class="table-name">\'冠名是否展示\'</span>,',
+    '  <span class="id">`poster_url`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'海报图\'</span>,',
+    '  <span class="kw">PRIMARY KEY</span> (<span class="id">`id`</span>),',
+    '  <span class="kw">KEY</span> <span class="id">`idx_biz_code`</span> (<span class="id">`biz_code`</span>)',
+    ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=<span class="table-name">\'演出业务表\'</span>;',
   ];
 
   return `<div class="vscode">
     ${renderSidebar('schema')}
     <div class="content">
       <div class="tabbar"><div class="tab">biz_show</div></div>
-      <div class="toolbar"><strong>qa_bi_dwd.biz_show</strong><span class="muted">45 columns</span><span class="badge">Read-only schema view</span></div>
-      <div class="grid" style="padding:16px;">
-        <label>Connection</label><strong>sr</strong>
+      <div class="toolbar"><strong>qa_bi_dwd.biz_show</strong><span class="muted">45 columns</span><span class="badge">Read-only properties</span></div>
+      <div class="grid" style="padding:12px 16px 8px;">
+        <label>Connection</label><strong>qa-bi-dwd</strong>
         <label>Database</label><strong>qa_bi_dwd</strong>
       </div>
-      <table>
-        <thead><tr><th>Name</th><th>Type</th><th>Length</th><th>Comment</th><th>Nullable</th><th>Primary Key</th></tr></thead>
-        <tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('')}</tbody>
-      </table>
+      <div style="display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px;">
+        <div class="tabs" style="height:40px;align-items:flex-end;"><span><b class="shot-tab-icon columns">▤</b> Columns</span><span class="active"><b class="shot-tab-icon ddl">{}</b> DDL</span></div>
+        <div style="margin-left:auto;display:flex;gap:8px;"><span class="btn" style="height:28px;min-width:70px;">Copy</span><span class="btn" style="height:28px;min-width:76px;">Refresh</span></div>
+      </div>
+      <div class="editor" style="height:calc(100% - 182px);padding-top:22px;">
+        ${ddl.map((line, index) => codeLine(index + 1, line)).join('')}
+      </div>
     </div>
   </div>`;
 }

@@ -9,6 +9,10 @@ export function splitSqlStatements(sql: string): string[] {
     .filter(Boolean);
 }
 
+export function getSqlStatementRanges(sql: string): SqlStatementRange[] {
+  return scanStatementRanges(sql);
+}
+
 export function findStatementAtOffset(
   sql: string,
   offset: number,

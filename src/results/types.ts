@@ -10,6 +10,7 @@ export interface QueryColumn {
 export interface QueryResultPagination {
   mode: 'server';
   sourceSql: string;
+  variableValues?: Record<string, unknown>;
   page: number;
   pageSize: number;
   totalRows: number;

@@ -18,6 +18,14 @@ export interface ColumnInfo {
   ordinal: number;
 }
 
+export interface IndexInfo {
+  name: string;
+  columns: string[];
+  unique: boolean;
+  primary?: boolean;
+}
+
 export interface TableDetails extends TableInfo {
   columns: ColumnInfo[];
+  indexes?: IndexInfo[];
 }

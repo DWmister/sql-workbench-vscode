@@ -6,8 +6,8 @@ import {
 } from './connectionTester';
 
 interface ConnectionFormCallbacks {
-  save(input: DraftConnectionConfig): Promise<ConnectionConfig>;
-  test(input: DraftConnectionConfig): Promise<ConnectionTestResult>;
+  save(input: DraftConnectionConfig, editingId?: string): Promise<ConnectionConfig>;
+  test(input: DraftConnectionConfig, editingId?: string): Promise<ConnectionTestResult>;
   onSaved(connection: ConnectionConfig): Promise<void>;
 }
 
@@ -19,17 +19,19 @@ type FormMessage =
 export class ConnectionFormPanel implements vscode.Disposable {
   private panel: vscode.WebviewPanel | undefined;
   private messageSubscription: vscode.Disposable | undefined;
+  private editingConnection: ConnectionConfig | undefined;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly callbacks: ConnectionFormCallbacks,
   ) {}
 
-  public show(): void {
+  public show(connection?: ConnectionConfig): void {
+    this.editingConnection = connection;
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         'sqlWorkbench.connectionForm',
-        'Add Connection',
+        connection ? 'Edit Connection' : 'Add Connection',
         vscode.ViewColumn.Beside,
         {
           enableScripts: true,
@@ -47,7 +49,8 @@ export class ConnectionFormPanel implements vscode.Disposable {
       });
     }
 
-    this.panel.webview.html = renderConnectionFormHtml(this.panel.webview);
+    this.panel.title = connection ? 'Edit Connection' : 'Add Connection';
+    this.panel.webview.html = renderConnectionFormHtml(this.panel.webview, connection);
     this.panel.reveal(vscode.ViewColumn.Beside, false);
   }
 
@@ -70,7 +73,7 @@ export class ConnectionFormPanel implements vscode.Disposable {
       }
 
       this.postStatus({ ok: undefined, message: 'Testing connection...' });
-      this.postStatus(await this.callbacks.test(cleanDraft(message.payload)));
+      this.postStatus(await this.callbacks.test(cleanDraft(message.payload), this.editingConnection?.id));
       return;
     }
 
@@ -83,7 +86,7 @@ export class ConnectionFormPanel implements vscode.Disposable {
 
       try {
         this.postStatus({ ok: undefined, message: 'Saving connection...' });
-        const created = await this.callbacks.save(cleanDraft(message.payload));
+        const created = await this.callbacks.save(cleanDraft(message.payload), this.editingConnection?.id);
         await this.callbacks.onSaved(created);
         this.postStatus({ ok: true, message: `Saved ${created.name}.` });
         this.panel?.dispose();
@@ -138,7 +141,7 @@ function cleanDraft(input: DraftConnectionConfig): DraftConnectionConfig {
     port: input.port === undefined ? undefined : Number(input.port),
     database: normalizeOptional(input.database),
     username: normalizeOptional(input.username),
-    password: input.password,
+    password: normalizeOptional(input.password),
     path: normalizeOptional(input.path),
   };
 }
@@ -148,8 +151,28 @@ function normalizeOptional(value?: string): string | undefined {
   return normalized || undefined;
 }
 
-function renderConnectionFormHtml(webview: vscode.Webview): string {
+function toInitialFormState(connection?: ConnectionConfig): Partial<DraftConnectionConfig> | undefined {
+  if (!connection) {
+    return undefined;
+  }
+
+  return {
+    name: connection.name,
+    group: connection.group,
+    type: connection.type,
+    host: connection.host,
+    port: connection.port,
+    database: connection.database,
+    username: connection.username,
+    path: connection.path,
+  };
+}
+
+function renderConnectionFormHtml(webview: vscode.Webview, initialConnection?: ConnectionConfig): string {
   const nonce = getNonce();
+  const initialJson = JSON.stringify(toInitialFormState(initialConnection) ?? null).replace(/</g, '\\u003c');
+  const title = initialConnection ? '编辑连接' : '连接至服务';
+  const passwordPlaceholder = initialConnection ? '留空保留现有密码' : '密码';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -353,7 +376,7 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
   <main>
     <div class="header">
       <div class="logo" aria-hidden="true"><span class="a"></span><span class="b"></span><span class="c"></span></div>
-      <h1>连接至服务</h1>
+      <h1>${title}</h1>
     </div>
 
     <div class="top-grid">
@@ -396,7 +419,7 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
         <label class="required server-only" for="username">用户名</label>
         <input class="server-only" id="username" autocomplete="off" value="root">
         <label class="server-only" for="password">密码</label>
-        <input class="server-only" id="password" type="password" autocomplete="off" placeholder="密码">
+        <input class="server-only" id="password" type="password" autocomplete="off" placeholder="${passwordPlaceholder}">
 
         <label class="required server-only" for="database">数据库</label>
         <input class="server-only wide" id="database" autocomplete="off" placeholder="目标数据库">
@@ -408,7 +431,7 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
 
     <div class="actions">
       <button class="action secondary" type="button" id="test">测试连接</button>
-      <button class="action" type="button" id="save">保存</button>
+      <button class="action" type="button" id="save">${initialConnection ? '保存修改' : '保存'}</button>
       <button class="action secondary" type="button" id="close">关闭</button>
     </div>
     <div id="status" class="status" role="status"></div>
@@ -416,6 +439,7 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
+    const initial = ${initialJson};
     const buttons = Array.from(document.querySelectorAll('[data-type]'));
     const status = document.getElementById('status');
 
@@ -452,6 +476,8 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       const payload = message.payload;
       setStatus(payload.message, payload.ok === true ? 'ok' : payload.ok === false ? 'error' : '');
     });
+
+    applyInitial(initial);
 
     function setType(type) {
       document.body.dataset.dbType = type;
@@ -556,6 +582,21 @@ function renderConnectionFormHtml(webview: vscode.Webview): string {
       setValue('path', value.path || '');
     }
 
+    function applyInitial(value) {
+      if (!value) {
+        return;
+      }
+      setType(value.type || 'mysql');
+      setValue('name', value.name || '');
+      setValue('group', value.group || 'Default');
+      setValue('host', value.host || '127.0.0.1');
+      setValue('port', value.port ? String(value.port) : String(defaultPort(value.type || 'mysql')));
+      setValue('username', value.username || '');
+      setValue('password', '');
+      setValue('database', value.database || '');
+      setValue('path', value.path || '');
+    }
+
     function value(id) {
       return document.getElementById(id).value;
     }
@@ -591,3 +632,7 @@ function getNonce(): string {
 
   return text;
 }
+
+export const __connectionFormPanelTestHooks = {
+  renderConnectionFormHtml,
+};

@@ -2,7 +2,7 @@
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
   "description": "A VS Code database workbench with connection management, schema browsing, SQL execution, and smart completions.",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {
@@ -28,6 +28,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onLanguage:sql",
     "onView:sqlWorkbench.connections",
     "onCommand:sqlWorkbench.connection.add",
     "onCommand:sqlWorkbench.connection.edit",
@@ -183,6 +184,19 @@
           "default": 10,
           "minimum": 1,
           "description": "Number of rows fetched and displayed per page for pageable SELECT results."
+        },
+        "sqlWorkbench.variables": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          },
+          "description": "Workspace-level default values for SQL variables such as :name or $name. Values can be reviewed before execution."
         }
       }
     },
@@ -208,6 +222,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "check": "tsc -p ./ --noEmit",
+    "verify:v0.2": "npm run compile && node scripts/verify-v0.2.js",
     "screenshots": "node scripts/generate-readme-screenshots.js"
   },
   "devDependencies": {
