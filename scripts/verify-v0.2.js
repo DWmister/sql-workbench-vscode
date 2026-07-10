@@ -26,6 +26,7 @@ const { findStatementAtOffset, getSqlStatementRanges, splitSqlStatements } = req
 const { findDangerousSqlStatements } = require(path.join(outDir, 'query', 'sqlSafety'));
 const { compileSqlVariables, getSqlVariableNames } = require(path.join(outDir, 'query', 'sqlVariables'));
 const { registerSqlCodeLensProvider } = require(path.join(outDir, 'query', 'sqlCodeLensProvider'));
+const { registerSqlCompletionProvider } = require(path.join(outDir, 'completion', 'sqlCompletionProvider'));
 const { registerSqlHoverProvider } = require(path.join(outDir, 'completion', 'sqlHoverProvider'));
 const { __connectionFormPanelTestHooks } = require(path.join(outDir, 'connection', 'connectionFormPanel'));
 const { __resultViewPanelTestHooks } = require(path.join(outDir, 'results', 'resultViewPanel'));
@@ -37,8 +38,10 @@ async function main() {
   verifySqlVariables();
   verifyDangerousSqlDetection();
   verifyProductText();
+  verifyCompletionDefaults();
   verifyPanelPlacement();
   verifyCodeLensProvider();
+  await verifyCompletionProviderFastTablePath();
   await verifyHoverProvider();
   verifyResultExportSerializers();
   await verifyDriverPageConnectionLifecycle();
@@ -82,6 +85,13 @@ function verifyProductText() {
       assert.ok(!pattern.test(text), `${path.relative(repoRoot, file)} contains stale v0.1 boundary text: ${pattern}`);
     }
   }
+}
+
+function verifyCompletionDefaults() {
+  const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+  const sqlDefaults = packageJson.contributes?.configurationDefaults?.['[sql]'];
+  assert.strictEqual(sqlDefaults?.['editor.quickSuggestions']?.other, 'on');
+  assert.strictEqual(sqlDefaults?.['editor.suggestOnTriggerCharacters'], true);
 }
 
 function verifyPanelPlacement() {
@@ -226,6 +236,90 @@ function verifyCodeLensProvider() {
   assert.strictEqual(lenses[0].command.command, 'sqlWorkbench.query.runStatementAtRange');
   assert.strictEqual(lenses[0].command.arguments[0], document.uri);
   assert.ok(lenses[0].command.arguments[1] instanceof vscodeMock.Range);
+}
+
+async function verifyCompletionProviderFastTablePath() {
+  vscodeMock.languages.completionItemProviders = [];
+  const connection = {
+    id: 'completion-connection',
+    name: 'Completion Connection',
+    type: 'postgresql',
+    group: 'Verify',
+    database: 'app',
+  };
+  const table = {
+    connection,
+    schema: 'public',
+    name: 'merchant',
+    type: 'table',
+  };
+  const tableGate = createDeferred();
+  const detailGate = createDeferred();
+  let listCalls = 0;
+  let detailCalls = 0;
+  const schemaInspector = {
+    async listTables() {
+      listCalls += 1;
+      await tableGate.promise;
+      return [table];
+    },
+    async getTableDetails() {
+      detailCalls += 1;
+      await detailGate.promise;
+      return {
+        ...table,
+        columns: [
+          { name: 'id', type: 'integer', nullable: false, primaryKey: true, ordinal: 1 },
+        ],
+      };
+    },
+  };
+
+  const registered = registerSqlCompletionProvider({
+    async resolveConnection() {
+      return connection;
+    },
+    schemaInspector,
+  });
+
+  assert.strictEqual(vscodeMock.languages.completionItemProviders.length, 1);
+  const completionRegistration = vscodeMock.languages.completionItemProviders[0];
+  assert.deepStrictEqual(completionRegistration.triggerCharacters, ['.', '_']);
+  const provider = completionRegistration.provider;
+  const tableDocument = createTextDocument('SELECT * FROM mer');
+  const tablePosition = tableDocument.positionAt(tableDocument.getText().length);
+  const firstTableItems = provider.provideCompletionItems(tableDocument, tablePosition);
+  const secondTableItems = provider.provideCompletionItems(tableDocument, tablePosition);
+
+  tableGate.resolve();
+  const [firstItems, secondItems] = await Promise.all([firstTableItems, secondTableItems]);
+  assert.strictEqual(listCalls, 1, 'concurrent completion requests should share one table lookup');
+  assert.strictEqual(detailCalls, 0, 'table completion must not preload column metadata');
+  assert.ok(firstItems.some((item) => item.label === 'merchant'));
+  assert.ok(secondItems.some((item) => item.label === 'merchant'));
+
+  const reportTable = { ...table, name: 'report_collection' };
+  registered.prime(connection, [table, reportTable]);
+  await registered.warm(tableDocument);
+  const primedDocument = createTextDocument('SELECT * FROM report_col');
+  const primedItems = await provider.provideCompletionItems(
+    primedDocument,
+    primedDocument.positionAt(primedDocument.getText().length),
+  );
+  assert.strictEqual(listCalls, 1, 'primed table completion should not query the database again');
+  assert.ok(primedItems.some((item) => item.label === 'report_collection'));
+
+  const columnDocument = createTextDocument('SELECT * FROM merchant m WHERE m.');
+  const columnPosition = columnDocument.positionAt(columnDocument.getText().length);
+  const firstColumnItems = provider.provideCompletionItems(columnDocument, columnPosition);
+  const secondColumnItems = provider.provideCompletionItems(columnDocument, columnPosition);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.strictEqual(detailCalls, 1, 'concurrent column completion should share one detail lookup');
+  detailGate.resolve();
+  const [firstColumns, secondColumns] = await Promise.all([firstColumnItems, secondColumnItems]);
+  assert.ok(firstColumns.some((item) => item.label?.label === 'id'));
+  assert.ok(secondColumns.some((item) => item.label?.label === 'id'));
 }
 
 async function verifyHoverProvider() {
@@ -1342,6 +1436,14 @@ function createSecretStorage() {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  const promise = new Promise((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
+}
+
 function createVscodeMock() {
   return {
     Uri: {
@@ -1387,6 +1489,7 @@ function createVscodeMock() {
     },
     languages: {
       codeLensProviders: [],
+      completionItemProviders: [],
       hoverProviders: [],
       registerCodeLensProvider(selector, provider) {
         this.codeLensProviders.push({ selector, provider });
@@ -1394,6 +1497,10 @@ function createVscodeMock() {
       },
       registerHoverProvider(selector, provider) {
         this.hoverProviders.push({ selector, provider });
+        return { dispose() {} };
+      },
+      registerCompletionItemProvider(selector, provider, ...triggerCharacters) {
+        this.completionItemProviders.push({ selector, provider, triggerCharacters });
         return { dispose() {} };
       },
     },
@@ -1434,6 +1541,17 @@ function createVscodeMock() {
         this.range = range;
         this.command = command;
       }
+    },
+    CompletionItem: class CompletionItem {
+      constructor(label, kind) {
+        this.label = label;
+        this.kind = kind;
+      }
+    },
+    CompletionItemKind: {
+      Field: 4,
+      Keyword: 13,
+      Struct: 21,
     },
     Hover: class Hover {
       constructor(contents, range) {

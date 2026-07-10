@@ -23,7 +23,8 @@ All notable changes to SQL Workbench will be documented in this file.
 - SQL files can persist their own connection binding; Run, CodeLens, completion, and hover now prefer the active document's connection over the default fallback.
 - Moved or renamed SQL files can restore previous connection bindings when their content fingerprint matches an earlier bound file.
 - Dangerous SQL confirmation now guards `UPDATE` and `DELETE` statements without a real `WHERE` clause across keyboard, Run All, and CodeLens execution.
-- `npm run verify:v0.2` checks SQL parsing/ranges, variables, dangerous SQL detection, workspace connections/SecretStorage, result export serialization, DDL Hover and table DDL, CodeLens, SQL file binding recovery, MySQL/PostgreSQL pagination paths, SQLite schema metadata, read-only JSON cell viewing, and webview behavior/script syntax.
+- SQL table-name completion no longer waits for metadata from the first 30 tables; the database tree seeds the completion cache, active SQL editors prewarm it, concurrent requests share one lookup, and column metadata loads only for referenced tables. SQL quick suggestions are enabled by default and `_` is an explicit trigger character.
+- `npm run verify:v0.2` checks SQL parsing/ranges, variables, dangerous SQL detection, workspace connections/SecretStorage, result export serialization, DDL Hover and table DDL, CodeLens, completion fast paths, SQL file binding recovery, MySQL/PostgreSQL pagination paths, SQLite schema metadata, read-only JSON cell viewing, and webview behavior/script syntax.
 
 ## 0.1.0 - 2026-07-08
 

@@ -28,26 +28,33 @@ const SQL_KEYWORDS = [
   'EXPLAIN',
 ];
 
-const MAX_TABLES_FOR_COLUMN_HINTS = 30;
-const CACHE_TTL_MS = 30_000;
+const CACHE_TTL_MS = 60_000;
 
 export interface SqlCompletionProviderOptions {
   resolveConnection: (document?: vscode.TextDocument) => Promise<ConnectionConfig | undefined>;
   schemaInspector: SchemaInspector;
+  shouldWarm?: (connection: ConnectionConfig) => boolean;
+}
+
+export interface RegisteredSqlCompletionProvider extends vscode.Disposable {
+  prime(connection: ConnectionConfig, tables: TableInfo[]): void;
+  warm(document?: vscode.TextDocument): Promise<void>;
 }
 
 interface CachedSchema {
   expiresAt: number;
   tables: TableInfo[];
   details: TableDetails[];
+  detailLoads: Map<string, Promise<void>>;
 }
 
 export function registerSqlCompletionProvider(
   options: SqlCompletionProviderOptions,
-): vscode.Disposable {
+): RegisteredSqlCompletionProvider {
   const cache = new Map<string, CachedSchema>();
+  const schemaLoads = new Map<string, Promise<CachedSchema>>();
 
-  return vscode.languages.registerCompletionItemProvider(
+  const registration = vscode.languages.registerCompletionItemProvider(
     { language: 'sql', scheme: '*' },
     {
       async provideCompletionItems(document, position) {
@@ -58,7 +65,12 @@ export function registerSqlCompletionProvider(
           return items;
         }
 
-        const schema = await loadSchema(connection, options.schemaInspector, cache);
+        const schema = await loadSchema(
+          connection,
+          options.schemaInspector,
+          cache,
+          schemaLoads,
+        );
         const context = getCompletionContext(document, position);
         await ensureReferencedTableDetails(schema, context, options.schemaInspector);
         const scopedDetails = getScopedTableDetails(schema.details, context);
@@ -74,41 +86,136 @@ export function registerSqlCompletionProvider(
       },
     },
     '.',
+    '_',
   );
+
+  return {
+    dispose() {
+      registration.dispose();
+    },
+    prime(connection, tables) {
+      primeSchema(connection, tables, cache);
+    },
+    async warm(document) {
+      const connection = await options.resolveConnection(document);
+      if (connection && options.shouldWarm?.(connection) !== false) {
+        await loadSchema(connection, options.schemaInspector, cache, schemaLoads);
+      }
+    },
+  };
+}
+
+function primeSchema(
+  connection: ConnectionConfig,
+  tables: TableInfo[],
+  cache: Map<string, CachedSchema>,
+): void {
+  const cacheKey = getConnectionCacheKey(connection);
+  const previous = cache.get(cacheKey);
+  const tableNames = new Set(tables.map((table) => normalizeIdentifier(table.name)));
+
+  if (previous) {
+    previous.expiresAt = Date.now() + CACHE_TTL_MS;
+    previous.tables = tables;
+    previous.details = previous.details.filter((table) =>
+      tableNames.has(normalizeIdentifier(table.name)));
+    return;
+  }
+
+  cache.set(cacheKey, {
+    expiresAt: Date.now() + CACHE_TTL_MS,
+    tables,
+    details: [],
+    detailLoads: new Map(),
+  });
 }
 
 async function loadSchema(
   connection: ConnectionConfig,
   schemaInspector: SchemaInspector,
   cache: Map<string, CachedSchema>,
+  schemaLoads: Map<string, Promise<CachedSchema>>,
 ): Promise<CachedSchema> {
-  const cached = cache.get(connection.id);
-  if (cached && cached.expiresAt > Date.now()) {
+  const cacheKey = getConnectionCacheKey(connection);
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    if (cached.expiresAt <= Date.now()) {
+      void refreshSchema(connection, schemaInspector, cache, schemaLoads, cacheKey);
+    }
     return cached;
   }
 
-  try {
-    const tables = await schemaInspector.listTables(connection);
-    const details = await Promise.all(
-      tables.slice(0, MAX_TABLES_FOR_COLUMN_HINTS).map((table) =>
-        schemaInspector.getTableDetails(table),
-      ),
-    );
-    const next: CachedSchema = {
-      expiresAt: Date.now() + CACHE_TTL_MS,
-      tables,
-      details,
-    };
+  return refreshSchema(connection, schemaInspector, cache, schemaLoads, cacheKey);
+}
 
-    cache.set(connection.id, next);
-    return next;
-  } catch {
-    return {
-      expiresAt: Date.now() + CACHE_TTL_MS,
-      tables: [],
-      details: [],
-    };
+function refreshSchema(
+  connection: ConnectionConfig,
+  schemaInspector: SchemaInspector,
+  cache: Map<string, CachedSchema>,
+  schemaLoads: Map<string, Promise<CachedSchema>>,
+  cacheKey: string,
+): Promise<CachedSchema> {
+  const pending = schemaLoads.get(cacheKey);
+  if (pending) {
+    return pending;
   }
+
+  const load = schemaInspector.listTables(connection)
+    .then((tables): CachedSchema => {
+      const tableNames = new Set(tables.map((table) => normalizeIdentifier(table.name)));
+      const previous = cache.get(cacheKey);
+      if (previous) {
+        previous.expiresAt = Date.now() + CACHE_TTL_MS;
+        previous.tables = tables;
+        previous.details = previous.details.filter((table) =>
+          tableNames.has(normalizeIdentifier(table.name)));
+        return previous;
+      }
+
+      const next: CachedSchema = {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        tables,
+        details: [],
+        detailLoads: new Map(),
+      };
+
+      cache.set(cacheKey, next);
+      return next;
+    })
+    .catch((): CachedSchema => {
+      const previous = cache.get(cacheKey);
+      if (previous) {
+        previous.expiresAt = Date.now() + CACHE_TTL_MS;
+        return previous;
+      }
+
+      const empty: CachedSchema = {
+        expiresAt: Date.now() + CACHE_TTL_MS,
+        tables: [],
+        details: [],
+        detailLoads: new Map(),
+      };
+      cache.set(cacheKey, empty);
+      return empty;
+    })
+    .finally(() => {
+      schemaLoads.delete(cacheKey);
+    });
+
+  schemaLoads.set(cacheKey, load);
+  return load;
+}
+
+function getConnectionCacheKey(connection: ConnectionConfig): string {
+  return [
+    connection.id,
+    connection.type,
+    connection.host ?? '',
+    connection.port ?? '',
+    connection.database ?? '',
+    connection.username ?? '',
+    connection.path ?? '',
+  ].join('|');
 }
 
 async function ensureReferencedTableDetails(
@@ -118,6 +225,7 @@ async function ensureReferencedTableDetails(
 ): Promise<void> {
   const loaded = new Set(schema.details.map((table) => normalizeIdentifier(table.name)));
   const needed = new Set(context.tableRefs.map((tableRef) => tableRef.tableName));
+  const loads: Promise<void>[] = [];
 
   for (const tableName of needed) {
     if (loaded.has(tableName)) {
@@ -129,13 +237,29 @@ async function ensureReferencedTableDetails(
       continue;
     }
 
-    try {
-      schema.details.push(await schemaInspector.getTableDetails(table));
-      loaded.add(tableName);
-    } catch {
-      // Completion should stay quiet if a metadata lookup fails.
+    const pending = schema.detailLoads.get(tableName);
+    if (pending) {
+      loads.push(pending);
+      continue;
     }
+
+    const load = schemaInspector.getTableDetails(table)
+      .then((details) => {
+        schema.details.push(details);
+        loaded.add(tableName);
+      })
+      .catch(() => {
+        // Completion should stay quiet if a metadata lookup fails.
+      })
+      .finally(() => {
+        schema.detailLoads.delete(tableName);
+      });
+
+    schema.detailLoads.set(tableName, load);
+    loads.push(load);
   }
+
+  await Promise.all(loads);
 }
 
 function createKeywordItems(): vscode.CompletionItem[] {

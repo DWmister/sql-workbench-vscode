@@ -58,6 +58,11 @@ export function activate(context: vscode.ExtensionContext): void {
     return entered;
   };
   const schemaInspector = createSchemaInspector({ getPassword });
+  const completionProvider = registerSqlCompletionProvider({
+    schemaInspector,
+    resolveConnection: (document) => activeConnection.get(document),
+    shouldWarm: (connection) => !isWorkspaceConnection(connection),
+  });
   const tableDetailsPanel = new TableDetailsPanel(context.extensionUri, {
     loadDdl: (table) => schemaInspector.getTableDdl(table),
   });
@@ -74,6 +79,9 @@ export function activate(context: vscode.ExtensionContext): void {
       },
     },
     schemaInspector,
+    onTablesLoaded(connection, tables) {
+      completionProvider.prime(connection, tables);
+    },
   });
   const statusBar = new ActiveConnectionStatusBar(activeConnection);
   const connectionFormPanel = new ConnectionFormPanel(context.extensionUri, {
@@ -95,6 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
     },
     onSaved: async (connection) => {
       await activeConnection.set(connection.id, getActiveSqlDocument());
+      void completionProvider.warm(getActiveSqlDocument());
       treeProvider.refresh();
       await statusBar.refresh();
     },
@@ -161,6 +170,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const connection = extractConnectionArgument(argument);
       if (connection) {
         await activeConnection.set(connection.id, getActiveSqlDocument());
+        void completionProvider.warm(getActiveSqlDocument());
         treeProvider.refresh();
         await statusBar.refresh();
         return;
@@ -172,6 +182,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       await activeConnection.set(selected.id, getActiveSqlDocument());
+      void completionProvider.warm(getActiveSqlDocument());
       treeProvider.refresh();
       await statusBar.refresh();
     }),
@@ -183,6 +194,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const document = await openQueryDocument(target);
       await activeConnection.set(target.id, document);
+      void completionProvider.warm(document);
       treeProvider.refresh();
       await statusBar.refresh();
     }),
@@ -232,21 +244,22 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         await activeConnection.set(selected.id, document ?? getActiveSqlDocument());
+        void completionProvider.warm(document ?? getActiveSqlDocument());
         treeProvider.refresh();
         await statusBar.refresh();
         return selected;
       },
     }),
-    registerSqlCompletionProvider({
-      schemaInspector,
-      resolveConnection: (document) => activeConnection.get(document),
-    }),
+    completionProvider,
     registerSqlHoverProvider({
       schemaInspector,
       resolveConnection: (document) => activeConnection.get(document),
     }),
     registerSqlCodeLensProvider(),
-    vscode.window.onDidChangeActiveTextEditor(async () => {
+    vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+      if (editor && isSqlDocument(editor.document)) {
+        void completionProvider.warm(editor.document);
+      }
       await statusBar.refresh();
       treeProvider.refresh();
     }),
@@ -259,6 +272,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   statusBar.refresh();
+  void completionProvider.warm(getActiveSqlDocument());
 }
 
 export function deactivate(): void {

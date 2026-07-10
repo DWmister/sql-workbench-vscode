@@ -20,6 +20,7 @@ export interface ConnectionStoreLike {
 export interface DatabaseTreeProviderOptions {
   connectionStore: ConnectionStoreLike;
   schemaInspector: SchemaInspector;
+  onTablesLoaded?: (connection: DatabaseConnection, tables: TableInfo[]) => void;
 }
 
 export class DatabaseTreeProvider
@@ -40,10 +41,12 @@ export class DatabaseTreeProvider
   private isCacheLoaded = false;
   private readonly connectionStore: ConnectionStoreLike;
   private readonly schemaInspector: SchemaInspector;
+  private readonly onTablesLoaded?: DatabaseTreeProviderOptions['onTablesLoaded'];
 
   constructor(options: DatabaseTreeProviderOptions) {
     this.connectionStore = options.connectionStore;
     this.schemaInspector = options.schemaInspector;
+    this.onTablesLoaded = options.onTablesLoaded;
   }
 
   public refresh(item?: DatabaseTreeItem): void {
@@ -136,6 +139,7 @@ export class DatabaseTreeProvider
   ): Promise<DatabaseTreeItem[]> {
     try {
       const tables = await this.schemaInspector.listTables(connection);
+      this.onTablesLoaded?.(connection, tables);
 
       if (tables.length === 0) {
         return [new DatabaseEmptyTreeItem('No tables found', '')];
