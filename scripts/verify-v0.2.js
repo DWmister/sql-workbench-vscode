@@ -23,6 +23,8 @@ const { ConnectionStore } = require(path.join(outDir, 'connection', 'connectionS
 const { WorkspaceConnectionStore } = require(path.join(outDir, 'connection', 'workspaceConnectionStore'));
 const { createSchemaInspector } = require(path.join(outDir, 'schema', 'inspector'));
 const { findStatementAtOffset, getSqlStatementRanges, splitSqlStatements } = require(path.join(outDir, 'query', 'sqlParser'));
+const { extractSelectedOrCurrentStatement } = require(path.join(outDir, 'query', 'sqlExtractor'));
+const { __queryCommandTestHooks } = require(path.join(outDir, 'query', 'commands'));
 const { findDangerousSqlStatements } = require(path.join(outDir, 'query', 'sqlSafety'));
 const { compileSqlVariables, getSqlVariableNames } = require(path.join(outDir, 'query', 'sqlVariables'));
 const { registerSqlCodeLensProvider } = require(path.join(outDir, 'query', 'sqlCodeLensProvider'));
@@ -35,6 +37,7 @@ const { ActiveConnectionState } = require(path.join(outDir, 'connection', 'activ
 
 async function main() {
   verifySqlParser();
+  verifyCurrentStatementResultSql();
   verifySqlVariables();
   verifyDangerousSqlDetection();
   verifyProductText();
@@ -190,6 +193,25 @@ function verifySqlParser() {
   const secondOffset = sql.indexOf('SELECT 2');
   const second = findStatementAtOffset(sql, secondOffset);
   assert.strictEqual(sql.slice(second.start, second.end).includes('SELECT 2'), true);
+
+  const commentedSql = [
+    '-- 2026-07-13 request log',
+    '-- SELECT * FROM previous_query;',
+    'SELECT',
+    '  total_count',
+    'FROM notification_req',
+    'WHERE notification_type = \'EMAIL\';',
+  ].join('\n');
+  const document = createTextDocument(commentedSql);
+  const cursor = document.positionAt(commentedSql.indexOf('notification_type'));
+  const selection = new vscodeMock.Range(cursor, cursor);
+  selection.active = cursor;
+  const extracted = extractSelectedOrCurrentStatement({ document, selection });
+  assert.strictEqual(
+    extracted.sql,
+    "SELECT\n  total_count\nFROM notification_req\nWHERE notification_type = 'EMAIL'",
+  );
+  assert.strictEqual(document.getText(extracted.range).startsWith('SELECT'), true);
 }
 
 function verifySqlVariables() {
@@ -297,6 +319,10 @@ async function verifyCompletionProviderFastTablePath() {
   assert.strictEqual(detailCalls, 0, 'table completion must not preload column metadata');
   assert.ok(firstItems.some((item) => item.label === 'merchant'));
   assert.ok(secondItems.some((item) => item.label === 'merchant'));
+  assert.ok(firstItems.some((item) => item.label === 'DISTINCT' && item.insertText === 'DISTINCT'));
+  assert.ok(firstItems.some((item) => item.label === 'CASE WHEN' && item.insertText === 'CASE WHEN'));
+  assert.ok(firstItems.some((item) => item.label === 'COALESCE' && item.insertText === 'COALESCE'));
+  assert.ok(firstItems.some((item) => item.label === 'DATE_FORMAT' && item.insertText === 'DATE_FORMAT'));
 
   const reportTable = { ...table, name: 'report_collection' };
   registered.prime(connection, [table, reportTable]);
@@ -394,6 +420,16 @@ function verifyResultExportSerializers() {
 
   const firstPage = __resultViewPanelTestHooks.sliceDisplayResult(display, 1, 1);
   assert.strictEqual(firstPage.values.length, 1);
+
+  const highlighted = __resultViewPanelTestHooks.highlightResultSql(
+    "SELECT DISTINCT COALESCE(name, 'x<y') FROM items WHERE id = 42 -- note",
+  );
+  assert.ok(highlighted.includes('<span class="sql-keyword">SELECT</span>'));
+  assert.ok(highlighted.includes('<span class="sql-function">COALESCE</span>'));
+  assert.ok(highlighted.includes('<span class="sql-string">&#39;x&lt;y&#39;</span>'));
+  assert.ok(highlighted.includes('<span class="sql-number">42</span>'));
+  assert.ok(highlighted.includes('<span class="sql-comment">-- note</span>'));
+  assert.ok(!highlighted.includes('x<y'));
 
   const csv = __resultViewPanelTestHooks.toCsv(display);
   assert.ok(csv.startsWith('id,note,enabled,payload\n'));
@@ -1001,6 +1037,33 @@ function verifyResultWebviewScript() {
   assert.ok(!context.exports.__script.includes('Edit Cell Value'));
   assert.ok(!context.exports.__script.includes('modal-save'));
   assert.ok(!context.exports.__script.includes('modal-revert'));
+  assert.ok(context.exports.__script.includes('result.sqlHtml'));
+  assert.ok(context.exports.__script.includes('sql-preview'));
+}
+
+function verifyCurrentStatementResultSql() {
+  const result = {
+    sql: 'SELECT 1; SELECT 2;',
+    columns: [],
+    rows: [],
+    rowCount: 1,
+    elapsedMs: 2,
+    readOnly: true,
+    executedAt: new Date().toISOString(),
+    pagination: {
+      mode: 'server',
+      sourceSql: 'SELECT 1; SELECT 2;',
+      page: 1,
+      pageSize: 10,
+      totalRows: 1,
+    },
+  };
+  const current = __queryCommandTestHooks.withExecutedSql([result], 'SELECT * FROM items;', 'statement');
+  assert.strictEqual(current[0].sql, 'SELECT * FROM items');
+  assert.strictEqual(current[0].pagination.sourceSql, 'SELECT * FROM items');
+
+  const document = __queryCommandTestHooks.withExecutedSql([result], 'SELECT 1; SELECT 2;', 'document');
+  assert.strictEqual(document[0].sql, 'SELECT 1; SELECT 2;');
 }
 
 function verifyResultWebviewBehavior() {
@@ -1113,6 +1176,7 @@ function createWebviewPayload() {
     results: [
       {
         sql: 'SELECT * FROM items',
+        sqlHtml: '<span class="sql-keyword">SELECT</span> * <span class="sql-keyword">FROM</span> items',
         columns: [
           { name: 'id', type: 'integer' },
           { name: 'meta', type: 'json' },
@@ -1368,6 +1432,9 @@ function createTextDocument(text, filePath = path.join(os.tmpdir(), 'verify.sql'
     positionAt(offset) {
       return positionAt(text, offset);
     },
+    offsetAt(position) {
+      return offsetAt(text, position);
+    },
     getWordRangeAtPosition(position, regex) {
       const offset = offsetAt(text, position);
       const pattern = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
@@ -1549,6 +1616,7 @@ function createVscodeMock() {
       }
     },
     CompletionItemKind: {
+      Function: 3,
       Field: 4,
       Keyword: 13,
       Struct: 21,

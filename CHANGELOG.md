@@ -2,6 +2,18 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.1 - 2026-07-13
+
+### Improved
+
+- Running the current cursor statement or a single selected statement now keeps the matching SQL fragment in the result panel and pageable reloads.
+- Result SQL previews use theme-aware syntax colors for keywords, functions, strings, numbers, comments, and operators.
+- SQL completion now includes uppercase common clauses and functions such as `DISTINCT`, `ORDER BY`, `CASE WHEN`, `COALESCE`, and `DATE_FORMAT`, with matching snippets.
+
+### Fixed
+
+- Cursor execution ignores leading SQL comments before the active statement, so logged or commented-out prior queries do not appear in the result SQL preview.
+
 ## 0.2.0 - 2026-07-09
 
 ### Added

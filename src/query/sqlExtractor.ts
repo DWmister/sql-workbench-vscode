@@ -31,14 +31,42 @@ export function extractSelectedOrCurrentStatement(
     return undefined;
   }
 
+  const sqlStart = skipLeadingSqlComments(text, statement.start, statement.end);
+
   return {
-    sql: text.slice(statement.start, statement.end).trim(),
+    sql: text.slice(sqlStart, statement.end).trim(),
     source: 'statement',
     range: new vscode.Range(
-      document.positionAt(statement.start),
+      document.positionAt(sqlStart),
       document.positionAt(statement.end),
     ),
   };
+}
+
+function skipLeadingSqlComments(sql: string, start: number, end: number): number {
+  let index = start;
+
+  while (index < end) {
+    while (index < end && /\s/u.test(sql[index])) {
+      index += 1;
+    }
+
+    if ((sql[index] === '-' && sql[index + 1] === '-') || sql[index] === '#') {
+      const lineEnd = sql.indexOf('\n', index);
+      index = lineEnd === -1 || lineEnd >= end ? end : lineEnd + 1;
+      continue;
+    }
+
+    if (sql[index] === '/' && sql[index + 1] === '*') {
+      const blockEnd = sql.indexOf('*/', index + 2);
+      index = blockEnd === -1 || blockEnd + 2 >= end ? end : blockEnd + 2;
+      continue;
+    }
+
+    break;
+  }
+
+  return index;
 }
 
 export function extractFullDocumentSql(

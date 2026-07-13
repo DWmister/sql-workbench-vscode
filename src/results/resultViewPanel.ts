@@ -19,6 +19,7 @@ type DisplayValue = string | number | boolean | null | { type: 'blob'; bytes: nu
 
 interface DisplayResult {
   sql: string;
+  sqlHtml: string;
   columns: QueryColumn[];
   rows: string[][];
   values: DisplayValue[][];
@@ -236,6 +237,7 @@ function getPaginationVariables(results: QueryResult[]): Map<number, Record<stri
 function toDisplayResult(result: QueryResult): DisplayResult {
   return {
     sql: result.sql,
+    sqlHtml: highlightResultSql(result.sql),
     columns: result.columns,
     rows: result.rows.map((row) => row.map(formatValue)),
     values: result.rows.map((row) => row.map(toDisplayValue)),
@@ -267,7 +269,7 @@ function renderResultsHtml(webview: vscode.Webview): string {
     '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'nonce-' + nonce + '\' ' + webview.cspSource + '; script-src \'nonce-' + nonce + '\';">',
     '  <title>SQL Results</title>',
     '  <style nonce="' + nonce + '">',
-    '    :root { color-scheme: light dark; --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); --muted: var(--vscode-descriptionForeground); --error: var(--vscode-errorForeground); --button-bg: var(--vscode-button-secondaryBackground, transparent); --button-fg: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); }',
+    '    :root { color-scheme: light dark; --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); --muted: var(--vscode-descriptionForeground); --error: var(--vscode-errorForeground); --button-bg: var(--vscode-button-secondaryBackground, transparent); --button-fg: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); --sql-keyword: var(--vscode-symbolIcon-keywordForeground, #c586c0); --sql-function: var(--vscode-symbolIcon-functionForeground, #dcdcaa); --sql-string: var(--vscode-debugTokenExpression-string, #ce9178); --sql-number: var(--vscode-debugTokenExpression-number, #b5cea8); --sql-comment: var(--vscode-editorLineNumber-foreground, #6a9955); --sql-operator: var(--vscode-symbolIcon-operatorForeground, var(--vscode-foreground)); }',
     '    body { margin: 0; padding: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }',
     '    .toolbar, .pager, .result-actions { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--vscode-editor-background); white-space: nowrap; }',
     '    .toolbar { position: sticky; top: 0; z-index: 2; }',
@@ -278,6 +280,13 @@ function renderResultsHtml(webview: vscode.Webview): string {
     '    section { margin-bottom: 16px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--vscode-editor-background); }',
     '    .section-header { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); }',
     '    pre { margin: 0; padding: 9px 12px; overflow: auto; border-bottom: 1px solid var(--border); color: var(--muted); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); line-height: 1.45; white-space: pre-wrap; }',
+    '    .sql-preview { color: var(--vscode-editor-foreground); }',
+    '    .sql-keyword { color: var(--sql-keyword); }',
+    '    .sql-function { color: var(--sql-function); }',
+    '    .sql-string { color: var(--sql-string); }',
+    '    .sql-number { color: var(--sql-number); }',
+    '    .sql-comment { color: var(--sql-comment); }',
+    '    .sql-operator { color: var(--sql-operator); }',
     '    .table-wrap { overflow: auto; max-height: 62vh; }',
     '    table { width: 100%; border-collapse: collapse; table-layout: auto; }',
     '    th, td { max-width: 420px; padding: 7px 10px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }',
@@ -326,8 +335,8 @@ function getClientScript(): string {
     'function requestServerPage(index, result, page) { state.loading[index] = true; state.pages[index] = page; renderResult(index); vscode.postMessage({ type: "requestPage", payload: { resultIndex: index, connectionId: result.connectionId, sql: result.pagination.sourceSql, page, pageSize: result.pagination.pageSize, totalRows: result.pagination.totalRows } }); }',
     'function render() { renderToolbar(); const root = document.getElementById("results"); root.innerHTML = state.payload.results.map((_, index) => sectionShell(index)).join(""); state.payload.results.forEach((_, index) => renderResult(index)); }',
     'function renderToolbar() { const payload = state.payload; document.getElementById("toolbar").innerHTML = "<span class=\\"title\\">" + escapeHtml(payload.connectionName) + "</span><span class=\\"meta\\">" + payload.resultCount + " result" + (payload.resultCount === 1 ? "" : "s") + " · Total " + payload.totalRows + " · 耗时: " + formatElapsed(payload.elapsedMs) + (payload.hasError ? " · error" : "") + "</span><span class=\\"badge\\">Page size " + payload.pageSize + "</span>"; }',
-    'function sectionShell(index) { return "<section data-result=\\"" + index + "\\"><div class=\\"section-header\\" data-header=\\"" + index + "\\"></div><pre data-sql=\\"" + index + "\\"></pre><div data-body=\\"" + index + "\\"></div></section>"; }',
-    'function renderResult(index) { const result = state.payload.results[index]; const pageSize = result.pagination ? result.pagination.pageSize : state.payload.pageSize; const page = state.pages[index] || 1; const pageCount = getPageCount(result, pageSize); const start = result.rowCount === 0 ? 0 : (page - 1) * pageSize + 1; const end = Math.min(result.rowCount, page * pageSize); const affected = result.affectedRows === undefined ? "" : " · " + result.affectedRows + " affected"; document.querySelector("[data-header=\\"" + index + "\\"]").innerHTML = "<span class=\\"section-title\\">Result " + (index + 1) + "</span><span class=\\"meta\\">" + start + "-" + end + " / Total " + result.rowCount + " · 耗时: " + formatElapsed(result.elapsedMs) + affected + "</span>"; document.querySelector("[data-sql=\\"" + index + "\\"]").textContent = result.sql; const body = document.querySelector("[data-body=\\"" + index + "\\"]"); if (state.loading[index]) { body.innerHTML = renderPager(index, page, pageCount, start, end, result.rowCount) + "<div class=\\"loading\\">Loading page " + page + "...</div>"; return; } if (result.error) { body.innerHTML = "<div class=\\"error\\">" + escapeHtml(result.error) + "</div>"; return; } if (result.columns.length === 0) { body.innerHTML = "<div class=\\"empty\\">Statement executed. No rows returned.</div>"; return; } const rows = result.pagination ? result.rows : result.rows.slice((page - 1) * pageSize, page * pageSize); const values = result.pagination ? result.values : result.values.slice((page - 1) * pageSize, page * pageSize); body.innerHTML = renderPager(index, page, pageCount, start, end, result.rowCount) + renderActions(index, result) + (state.modes[index] === "json" ? renderJson(result, values) : renderTable(index, result, rows, values)); }',
+    'function sectionShell(index) { return "<section data-result=\\"" + index + "\\"><div class=\\"section-header\\" data-header=\\"" + index + "\\"></div><pre class=\\"sql-preview\\" data-sql=\\"" + index + "\\"></pre><div data-body=\\"" + index + "\\"></div></section>"; }',
+    'function renderResult(index) { const result = state.payload.results[index]; const pageSize = result.pagination ? result.pagination.pageSize : state.payload.pageSize; const page = state.pages[index] || 1; const pageCount = getPageCount(result, pageSize); const start = result.rowCount === 0 ? 0 : (page - 1) * pageSize + 1; const end = Math.min(result.rowCount, page * pageSize); const affected = result.affectedRows === undefined ? "" : " · " + result.affectedRows + " affected"; document.querySelector("[data-header=\\"" + index + "\\"]").innerHTML = "<span class=\\"section-title\\">Result " + (index + 1) + "</span><span class=\\"meta\\">" + start + "-" + end + " / Total " + result.rowCount + " · 耗时: " + formatElapsed(result.elapsedMs) + affected + "</span>"; document.querySelector("[data-sql=\\"" + index + "\\"]").innerHTML = result.sqlHtml; const body = document.querySelector("[data-body=\\"" + index + "\\"]"); if (state.loading[index]) { body.innerHTML = renderPager(index, page, pageCount, start, end, result.rowCount) + "<div class=\\"loading\\">Loading page " + page + "...</div>"; return; } if (result.error) { body.innerHTML = "<div class=\\"error\\">" + escapeHtml(result.error) + "</div>"; return; } if (result.columns.length === 0) { body.innerHTML = "<div class=\\"empty\\">Statement executed. No rows returned.</div>"; return; } const rows = result.pagination ? result.rows : result.rows.slice((page - 1) * pageSize, page * pageSize); const values = result.pagination ? result.values : result.values.slice((page - 1) * pageSize, page * pageSize); body.innerHTML = renderPager(index, page, pageCount, start, end, result.rowCount) + renderActions(index, result) + (state.modes[index] === "json" ? renderJson(result, values) : renderTable(index, result, rows, values)); }',
     'function renderActions(index, result) { const mode = state.modes[index] || "table"; return "<div class=\\"result-actions\\"><button data-action=\\"table\\" data-index=\\"" + index + "\\" class=\\"" + (mode === "table" ? "active" : "") + "\\">Table</button><button data-action=\\"json\\" data-index=\\"" + index + "\\" class=\\"" + (mode === "json" ? "active" : "") + "\\">JSON</button><button data-action=\\"export-open\\" data-index=\\"" + index + "\\" title=\\"Export result\\">⇩ 导出</button></div>"; }',
     'function renderTable(resultIndex, result, rows, values) { return "<div class=\\"table-wrap\\"><table><thead><tr>" + result.columns.map((column) => "<th title=\\"" + escapeAttribute(column.name) + "\\">" + escapeHtml(column.name) + "</th>").join("") + "</tr></thead><tbody>" + rows.map((row, rowIndex) => "<tr>" + row.map((cell, columnIndex) => renderCell(resultIndex, rowIndex, columnIndex, cell, values[rowIndex] ? values[rowIndex][columnIndex] : cell)).join("") + "</tr>").join("") + "</tbody></table></div>"; }',
     'function renderCell(resultIndex, rowIndex, columnIndex, cell) { const result = state.payload.results[resultIndex]; const title = escapeAttribute(cell); if (!isJsonColumn(result.columns[columnIndex])) return "<td title=\\"" + title + "\\">" + escapeHtml(cell) + "</td>"; return "<td title=\\"" + title + "\\"><button class=\\"cell-button\\" data-action=\\"view-cell\\" data-index=\\"" + resultIndex + "\\" data-row=\\"" + rowIndex + "\\" data-column=\\"" + columnIndex + "\\" title=\\"View JSON value\\">" + escapeHtml(cell) + "</button></td>"; }',
@@ -644,6 +653,122 @@ function getNonce(): string {
   return text;
 }
 
+const RESULT_SQL_KEYWORDS = new Set([
+  'ALL', 'ALTER', 'AND', 'AS', 'ASC', 'BETWEEN', 'BY', 'CASE', 'CREATE', 'CROSS',
+  'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DROP', 'ELSE', 'END', 'EXISTS', 'EXPLAIN',
+  'FALSE', 'FROM', 'FULL', 'GROUP', 'HAVING', 'IN', 'INDEX', 'INNER', 'INSERT', 'INTO',
+  'IS', 'JOIN', 'LEFT', 'LIKE', 'LIMIT', 'NOT', 'NULL', 'OFFSET', 'ON', 'OR', 'ORDER',
+  'OUTER', 'PRIMARY', 'RIGHT', 'SELECT', 'SET', 'SHOW', 'TABLE', 'THEN', 'TRUE', 'UNION',
+  'UNIQUE', 'UPDATE', 'VALUES', 'WHEN', 'WHERE', 'WITH',
+]);
+
+const RESULT_SQL_FUNCTIONS = new Set([
+  'AVG', 'CAST', 'COALESCE', 'CONCAT', 'COUNT', 'CURRENT_DATE', 'CURRENT_TIMESTAMP',
+  'DATE_ADD', 'DATE_FORMAT', 'DATE_SUB', 'EXTRACT', 'IFNULL', 'LOWER', 'MAX', 'MIN', 'NOW',
+  'NULLIF', 'SUM', 'UPPER',
+]);
+
+function highlightResultSql(sql: string): string {
+  let html = '';
+  let index = 0;
+
+  while (index < sql.length) {
+    const char = sql[index];
+    const next = sql[index + 1];
+
+    if ((char === '-' && next === '-') || char === '#') {
+      const end = sql.indexOf('\n', index);
+      const token = sql.slice(index, end === -1 ? sql.length : end);
+      html += wrapSqlToken('comment', token);
+      index += token.length;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      const close = sql.indexOf('*/', index + 2);
+      const end = close === -1 ? sql.length : close + 2;
+      html += wrapSqlToken('comment', sql.slice(index, end));
+      index = end;
+      continue;
+    }
+
+    if (char === '\'' || char === '"') {
+      const end = findQuotedSqlTokenEnd(sql, index, char);
+      html += wrapSqlToken(char === '\'' ? 'string' : 'plain', sql.slice(index, end));
+      index = end;
+      continue;
+    }
+
+    if (char === '`' || char === '[') {
+      const closing = char === '`' ? '`' : ']';
+      const end = findQuotedSqlTokenEnd(sql, index, closing);
+      html += wrapSqlToken('plain', sql.slice(index, end));
+      index = end;
+      continue;
+    }
+
+    const number = sql.slice(index).match(/^(?:\d+\.\d*|\.\d+|\d+)(?:e[+-]?\d+)?/iu)?.[0];
+    if (number) {
+      html += wrapSqlToken('number', number);
+      index += number.length;
+      continue;
+    }
+
+    const word = sql.slice(index).match(/^[A-Za-z_][A-Za-z0-9_$]*/u)?.[0];
+    if (word) {
+      const upper = word.toUpperCase();
+      const kind = RESULT_SQL_KEYWORDS.has(upper)
+        ? 'keyword'
+        : RESULT_SQL_FUNCTIONS.has(upper) ? 'function' : 'plain';
+      html += wrapSqlToken(kind, word);
+      index += word.length;
+      continue;
+    }
+
+    if ('=<>!+-*/%|&^~'.includes(char)) {
+      html += wrapSqlToken('operator', char);
+    } else {
+      html += escapeSqlHtml(char);
+    }
+    index += 1;
+  }
+
+  return html;
+}
+
+function findQuotedSqlTokenEnd(sql: string, start: number, quote: string): number {
+  let index = start + 1;
+  while (index < sql.length) {
+    if (sql[index] === '\\') {
+      index += 2;
+      continue;
+    }
+    if (sql[index] === quote) {
+      if (quote !== ']' && sql[index + 1] === quote) {
+        index += 2;
+        continue;
+      }
+      return index + 1;
+    }
+    index += 1;
+  }
+  return sql.length;
+}
+
+function wrapSqlToken(kind: 'comment' | 'function' | 'keyword' | 'number' | 'operator' | 'plain' | 'string', token: string): string {
+  const escaped = escapeSqlHtml(token);
+  return kind === 'plain' ? escaped : `<span class="sql-${kind}">${escaped}</span>`;
+}
+
+function escapeSqlHtml(value: string): string {
+  return value
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
+}
+
 export const __resultViewPanelTestHooks = {
   toDisplayResult,
   sliceDisplayResult,
@@ -652,4 +777,5 @@ export const __resultViewPanelTestHooks = {
   toExportBuffer,
   getExportDefaultUri,
   getClientScript,
+  highlightResultSql,
 };

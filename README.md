@@ -6,7 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.0-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.1-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -18,7 +18,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 | Capability | What it changes |
 | --- | --- |
-| SQL-first editing | SQL stays in native VS Code editors, so formatting, snippets, search, Git, and shortcuts work as expected. |
+| SQL-first editing | SQL stays in native VS Code editors, so formatting, snippets, search, Git, and shortcuts work as expected. `Cmd+Enter`/`Ctrl+Enter` runs the statement at the cursor and shows that exact fragment in the result. |
 | SQL file connection binding | Use the status bar or tree commands to bind a SQL file to a connection, with recovery prompts when moved files match a previous SQL fingerprint. |
 | Read-only table properties | Click a table to inspect columns and load migration-oriented DDL with copy and refresh actions, without enabling schema writes. |
 | Alias-aware completions | `bs.` only suggests fields from the table aliased as `bs`, with comments and types in the suggestion list. |
@@ -49,13 +49,13 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 - Personal connection metadata is stored in extension `globalState`; workspace connection metadata can live in `.vscode/sql-workbench.json`.
 - Passwords are never read from workspace files and stay local in VS Code `SecretStorage`.
 - SQL file connection binding with status bar, QuickPick switching, and fingerprint-based recovery prompts for moved files.
-- SQL snippets and completions for keywords, tables, and scoped columns.
+- SQL snippets and uppercase completions for keywords, common functions, tables, and scoped columns.
 - SQL table hover summaries for columns, primary keys, and indexes.
 - Per-statement CodeLens run actions in `.sql` editors.
 - SQL variables with execution-time prompts and workspace defaults from `sqlWorkbench.variables`.
 - Dangerous SQL confirmation for `UPDATE` and `DELETE` statements without a real `WHERE` clause.
 - `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows/Linux runs the current SQL statement.
-- Result webview with Table/JSON modes, pagination, CSV/JSON/XLSX export, and a read-only JSON/JSONB cell viewer.
+- Result webview with syntax-colored executed SQL, Table/JSON modes, pagination, CSV/JSON/XLSX export, and a read-only JSON/JSONB cell viewer.
 - Read-only schema tree: connection -> tables -> table -> columns.
 - Read-only table properties opened in the active editor group with Columns and on-demand DDL tabs.
 

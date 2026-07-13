@@ -40,5 +40,43 @@
       "JOIN ${1:table_name} ${2:alias} ON ${3:condition}"
     ],
     "description": "JOIN clause"
+  },
+  "Distinct expression": {
+    "prefix": "dis",
+    "body": [
+      "DISTINCT ${1:column}"
+    ],
+    "description": "DISTINCT expression"
+  },
+  "Order by clause": {
+    "prefix": "ord",
+    "body": [
+      "ORDER BY ${1:column} ${2:DESC}"
+    ],
+    "description": "ORDER BY clause"
+  },
+  "Case when expression": {
+    "prefix": "cas",
+    "body": [
+      "CASE",
+      "  WHEN ${1:condition} THEN ${2:value}",
+      "  ELSE ${3:value}",
+      "END"
+    ],
+    "description": "CASE WHEN expression"
+  },
+  "Coalesce expression": {
+    "prefix": "coa",
+    "body": [
+      "COALESCE(${1:value}, ${2:fallback})"
+    ],
+    "description": "COALESCE expression"
+  },
+  "Date format expression": {
+    "prefix": "dat",
+    "body": [
+      "DATE_FORMAT(${1:date}, '${2:%Y-%m-%d}')"
+    ],
+    "description": "DATE_FORMAT expression"
   }
 }

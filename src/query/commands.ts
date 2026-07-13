@@ -1,10 +1,15 @@
 import * as vscode from 'vscode';
 import type { ConnectionConfig } from '../connection/types';
+import type { QueryResult } from '../results/types';
 import { ResultViewPanel } from '../results/resultViewPanel';
-import { extractFullDocumentSql, extractSelectedOrCurrentStatement } from './sqlExtractor';
+import {
+  extractFullDocumentSql,
+  extractSelectedOrCurrentStatement,
+  type SqlExtractionSource,
+} from './sqlExtractor';
 import { createQueryRunner, type QueryExecutionOptions, type QueryInput, type QueryRunner } from './runner';
 import { findDangerousSqlStatements } from './sqlSafety';
-import { findStatementAtOffset } from './sqlParser';
+import { findStatementAtOffset, splitSqlStatements } from './sqlParser';
 import { getSqlVariableNames } from './sqlVariables';
 
 export const QueryCommandIds = {
@@ -86,7 +91,7 @@ async function executeFromEditor(
 
   return executeSql(
     extracted.sql,
-    mode === 'all' ? 'document' : 'statement',
+    extracted.source,
     optionsFrom(resolveConnection, runner, resultViewPanel, editor.document),
   );
 }
@@ -170,7 +175,7 @@ interface ExecuteSqlOptions {
 
 async function executeSql(
   sql: string,
-  source: 'statement' | 'document',
+  source: SqlExtractionSource,
   options: ExecuteSqlOptions,
 ): Promise<ConnectionConfig | undefined> {
   const connection = await options.resolveConnection(options.document);
@@ -193,12 +198,12 @@ async function executeSql(
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: source === 'document' ? 'Running SQL document' : 'Running SQL statement',
+        title: getExecutionTitle(source),
         cancellable: false,
       },
       async () => {
         const results = await options.runner.execute(connection, query, executionOptions);
-        options.resultViewPanel.show(results);
+        options.resultViewPanel.show(withExecutedSql(results, sql, source));
       },
     );
     return connection;
@@ -206,6 +211,35 @@ async function executeSql(
     vscode.window.showErrorMessage(getErrorMessage(error));
     return undefined;
   }
+}
+
+function getExecutionTitle(source: SqlExtractionSource): string {
+  if (source === 'document') {
+    return 'Running SQL document';
+  }
+
+  return source === 'selection' ? 'Running selected SQL' : 'Running SQL statement';
+}
+
+function withExecutedSql(
+  results: QueryResult[],
+  sql: string,
+  source: SqlExtractionSource,
+): QueryResult[] {
+  const statements = splitSqlStatements(sql);
+  if (source === 'document' || statements.length !== 1) {
+    return results;
+  }
+
+  const [statement] = statements;
+  return results.map((result) => ({
+    ...result,
+    sql: statement,
+    pagination: result.pagination ? {
+      ...result.pagination,
+      sourceSql: statement,
+    } : undefined,
+  }));
 }
 
 async function confirmDangerousSql(
@@ -311,3 +345,7 @@ function getErrorMessage(error: unknown): string {
 
   return String(error);
 }
+
+export const __queryCommandTestHooks = {
+  withExecutedSql,
+};

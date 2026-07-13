@@ -11,21 +11,72 @@ import {
 
 const SQL_KEYWORDS = [
   'SELECT',
+  'DISTINCT',
   'FROM',
   'WHERE',
   'JOIN',
   'LEFT JOIN',
+  'RIGHT JOIN',
   'INNER JOIN',
+  'OUTER JOIN',
+  'CROSS JOIN',
+  'ON',
   'GROUP BY',
+  'HAVING',
   'ORDER BY',
+  'ASC',
+  'DESC',
   'LIMIT',
+  'OFFSET',
+  'UNION',
+  'UNION ALL',
+  'CASE WHEN',
+  'THEN',
+  'ELSE',
+  'END',
+  'AND',
+  'OR',
+  'IN',
+  'EXISTS',
+  'BETWEEN',
+  'LIKE',
+  'IS NULL',
+  'IS NOT NULL',
   'INSERT INTO',
+  'VALUES',
   'UPDATE',
+  'SET',
   'DELETE FROM',
   'CREATE TABLE',
   'ALTER TABLE',
+  'DROP TABLE',
   'WITH',
+  'AS',
   'EXPLAIN',
+  'SHOW',
+  'DESCRIBE',
+];
+
+const SQL_FUNCTIONS = [
+  'COALESCE',
+  'NULLIF',
+  'IFNULL',
+  'DATE_FORMAT',
+  'DATE_ADD',
+  'DATE_SUB',
+  'NOW',
+  'CURRENT_DATE',
+  'CURRENT_TIMESTAMP',
+  'COUNT',
+  'SUM',
+  'AVG',
+  'MIN',
+  'MAX',
+  'CONCAT',
+  'LOWER',
+  'UPPER',
+  'CAST',
+  'EXTRACT',
 ];
 
 const CACHE_TTL_MS = 60_000;
@@ -263,12 +314,21 @@ async function ensureReferencedTableDetails(
 }
 
 function createKeywordItems(): vscode.CompletionItem[] {
-  return SQL_KEYWORDS.map((keyword) => {
+  const keywords = SQL_KEYWORDS.map((keyword) => {
     const item = new vscode.CompletionItem(keyword, vscode.CompletionItemKind.Keyword);
     item.detail = 'SQL keyword';
     item.insertText = keyword;
     return item;
   });
+
+  const functions = SQL_FUNCTIONS.map((name) => {
+    const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+    item.detail = 'SQL function';
+    item.insertText = name;
+    return item;
+  });
+
+  return [...keywords, ...functions];
 }
 
 function createTableItems(tables: TableInfo[]): vscode.CompletionItem[] {
