@@ -2,6 +2,13 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.2 - 2026-07-13
+
+### Improved
+
+- Result SQL previews have a bounded, scrollable code area so long statements do not push result data below the fold.
+- Result SQL highlighting now matches the table DDL palette for keywords, functions, types, identifiers, strings, numbers, and comments in light and dark themes.
+
 ## 0.2.1 - 2026-07-13
 
 ### Improved

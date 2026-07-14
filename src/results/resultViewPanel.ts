@@ -269,8 +269,9 @@ function renderResultsHtml(webview: vscode.Webview): string {
     '  <meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'nonce-' + nonce + '\' ' + webview.cspSource + '; script-src \'nonce-' + nonce + '\';">',
     '  <title>SQL Results</title>',
     '  <style nonce="' + nonce + '">',
-    '    :root { color-scheme: light dark; --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); --muted: var(--vscode-descriptionForeground); --error: var(--vscode-errorForeground); --button-bg: var(--vscode-button-secondaryBackground, transparent); --button-fg: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); --sql-keyword: var(--vscode-symbolIcon-keywordForeground, #c586c0); --sql-function: var(--vscode-symbolIcon-functionForeground, #dcdcaa); --sql-string: var(--vscode-debugTokenExpression-string, #ce9178); --sql-number: var(--vscode-debugTokenExpression-number, #b5cea8); --sql-comment: var(--vscode-editorLineNumber-foreground, #6a9955); --sql-operator: var(--vscode-symbolIcon-operatorForeground, var(--vscode-foreground)); }',
+    '    :root { color-scheme: light dark; --border: var(--vscode-panel-border, rgba(128, 128, 128, 0.35)); --muted: var(--vscode-descriptionForeground); --error: var(--vscode-errorForeground); --button-bg: var(--vscode-button-secondaryBackground, transparent); --button-fg: var(--vscode-button-secondaryForeground, var(--vscode-foreground)); --code: var(--vscode-textCodeBlock-background, var(--vscode-editorWidget-background)); --sql-keyword: var(--vscode-symbolIcon-keywordForeground, #c586c0); --sql-type: var(--vscode-symbolIcon-classForeground, #4ec9b0); --sql-identifier: var(--vscode-symbolIcon-fieldForeground, #65b7f3); --sql-function: var(--vscode-symbolIcon-functionForeground, #dcdcaa); --sql-string: var(--vscode-debugTokenExpression-string, #8ec07c); --sql-number: var(--vscode-debugTokenExpression-number, #d19a66); --sql-comment: var(--vscode-editorLineNumber-foreground, #6a9955); --sql-operator: var(--vscode-symbolIcon-operatorForeground, var(--vscode-foreground)); }',
     '    body { margin: 0; padding: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }',
+    '    body.vscode-light { --sql-keyword: #7a1f8a; --sql-type: #006b68; --sql-identifier: #005fb8; --sql-function: #7a4d00; --sql-string: #397300; --sql-number: #a04b00; --sql-comment: #527a2b; }',
     '    .toolbar, .pager, .result-actions { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--vscode-editor-background); white-space: nowrap; }',
     '    .toolbar { position: sticky; top: 0; z-index: 2; }',
     '    .title, .section-title { font-weight: 600; }',
@@ -280,8 +281,10 @@ function renderResultsHtml(webview: vscode.Webview): string {
     '    section { margin-bottom: 16px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--vscode-editor-background); }',
     '    .section-header { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); }',
     '    pre { margin: 0; padding: 9px 12px; overflow: auto; border-bottom: 1px solid var(--border); color: var(--muted); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); line-height: 1.45; white-space: pre-wrap; }',
-    '    .sql-preview { color: var(--vscode-editor-foreground); }',
-    '    .sql-keyword { color: var(--sql-keyword); }',
+    '    .sql-preview { max-height: min(42vh, 360px); overflow: auto; color: var(--vscode-editor-foreground); background: var(--code); tab-size: 2; white-space: pre; }',
+    '    .sql-keyword { color: var(--sql-keyword); font-weight: 600; }',
+    '    .sql-type { color: var(--sql-type); }',
+    '    .sql-identifier { color: var(--sql-identifier); }',
     '    .sql-function { color: var(--sql-function); }',
     '    .sql-string { color: var(--sql-string); }',
     '    .sql-number { color: var(--sql-number); }',
@@ -654,18 +657,30 @@ function getNonce(): string {
 }
 
 const RESULT_SQL_KEYWORDS = new Set([
-  'ALL', 'ALTER', 'AND', 'AS', 'ASC', 'BETWEEN', 'BY', 'CASE', 'CREATE', 'CROSS',
-  'DELETE', 'DESC', 'DESCRIBE', 'DISTINCT', 'DROP', 'ELSE', 'END', 'EXISTS', 'EXPLAIN',
-  'FALSE', 'FROM', 'FULL', 'GROUP', 'HAVING', 'IN', 'INDEX', 'INNER', 'INSERT', 'INTO',
-  'IS', 'JOIN', 'LEFT', 'LIKE', 'LIMIT', 'NOT', 'NULL', 'OFFSET', 'ON', 'OR', 'ORDER',
-  'OUTER', 'PRIMARY', 'RIGHT', 'SELECT', 'SET', 'SHOW', 'TABLE', 'THEN', 'TRUE', 'UNION',
-  'UNIQUE', 'UPDATE', 'VALUES', 'WHEN', 'WHERE', 'WITH',
+  'ACTION', 'ADD', 'ALL', 'ALTER', 'ALWAYS', 'AND', 'AS', 'ASC', 'AUTO_INCREMENT',
+  'BETWEEN', 'BY', 'CASE', 'CASCADE', 'CHARSET', 'CHECK', 'COLLATE', 'COMMENT',
+  'CONSTRAINT', 'CREATE', 'CROSS', 'DEFAULT', 'DEFERRABLE', 'DELETE', 'DESC', 'DESCRIBE',
+  'DISTINCT', 'DISTRIBUTED', 'DROP', 'ELSE', 'END', 'ENGINE', 'EXISTS', 'EXPLAIN', 'FALSE',
+  'FOREIGN', 'FROM', 'FULL', 'GENERATED', 'GROUP', 'HASH', 'HAVING', 'IDENTITY', 'IF',
+  'IN', 'INCLUDE', 'INDEX', 'INITIALLY', 'INNER', 'INSERT', 'INTO', 'IS', 'JOIN', 'KEY',
+  'LEFT', 'LIKE', 'LIMIT', 'MATCH', 'NO', 'NOT', 'NULL', 'OFFSET', 'ON', 'ONLY', 'OR',
+  'ORDER', 'OUTER', 'PARTITION', 'PRIMARY', 'REFERENCES', 'RESTRICT', 'RIGHT', 'SELECT',
+  'SET', 'SHOW', 'STORED', 'TABLE', 'TEMP', 'TEMPORARY', 'THEN', 'TRUE', 'UNION', 'UNIQUE',
+  'UPDATE', 'USING', 'VALUES', 'VIRTUAL', 'WHEN', 'WHERE', 'WITH',
 ]);
 
 const RESULT_SQL_FUNCTIONS = new Set([
   'AVG', 'CAST', 'COALESCE', 'CONCAT', 'COUNT', 'CURRENT_DATE', 'CURRENT_TIMESTAMP',
   'DATE_ADD', 'DATE_FORMAT', 'DATE_SUB', 'EXTRACT', 'IFNULL', 'LOWER', 'MAX', 'MIN', 'NOW',
   'NULLIF', 'SUM', 'UPPER',
+]);
+
+const RESULT_SQL_TYPES = new Set([
+  'ARRAY', 'BIGINT', 'BIGSERIAL', 'BINARY', 'BIT', 'BLOB', 'BOOL', 'BOOLEAN', 'BYTEA',
+  'CHAR', 'CHARACTER', 'CLOB', 'DATE', 'DATETIME', 'DEC', 'DECIMAL', 'DOUBLE', 'ENUM',
+  'FLOAT', 'GEOMETRY', 'INT', 'INTEGER', 'INTERVAL', 'JSON', 'JSONB', 'MEDIUMINT', 'MONEY',
+  'NCHAR', 'NUMERIC', 'NVARCHAR', 'REAL', 'SERIAL', 'SET', 'SMALLINT', 'SMALLSERIAL',
+  'TEXT', 'TIME', 'TIMESTAMP', 'TINYINT', 'UUID', 'VARBINARY', 'VARCHAR', 'VARBIT', 'XML',
 ]);
 
 function highlightResultSql(sql: string): string {
@@ -692,9 +707,18 @@ function highlightResultSql(sql: string): string {
       continue;
     }
 
+    const dollarTag = sql.slice(index).match(/^\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/u)?.[0];
+    if (dollarTag) {
+      const closingIndex = sql.indexOf(dollarTag, index + dollarTag.length);
+      const end = closingIndex === -1 ? sql.length : closingIndex + dollarTag.length;
+      html += wrapSqlToken('string', sql.slice(index, end));
+      index = end;
+      continue;
+    }
+
     if (char === '\'' || char === '"') {
       const end = findQuotedSqlTokenEnd(sql, index, char);
-      html += wrapSqlToken(char === '\'' ? 'string' : 'plain', sql.slice(index, end));
+      html += wrapSqlToken(char === '\'' ? 'string' : 'identifier', sql.slice(index, end));
       index = end;
       continue;
     }
@@ -702,12 +726,12 @@ function highlightResultSql(sql: string): string {
     if (char === '`' || char === '[') {
       const closing = char === '`' ? '`' : ']';
       const end = findQuotedSqlTokenEnd(sql, index, closing);
-      html += wrapSqlToken('plain', sql.slice(index, end));
+      html += wrapSqlToken('identifier', sql.slice(index, end));
       index = end;
       continue;
     }
 
-    const number = sql.slice(index).match(/^(?:\d+\.\d*|\.\d+|\d+)(?:e[+-]?\d+)?/iu)?.[0];
+    const number = sql.slice(index).match(/^(?:0x[\da-f]+|0b[01]+|\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?/iu)?.[0];
     if (number) {
       html += wrapSqlToken('number', number);
       index += number.length;
@@ -719,7 +743,8 @@ function highlightResultSql(sql: string): string {
       const upper = word.toUpperCase();
       const kind = RESULT_SQL_KEYWORDS.has(upper)
         ? 'keyword'
-        : RESULT_SQL_FUNCTIONS.has(upper) ? 'function' : 'plain';
+        : RESULT_SQL_FUNCTIONS.has(upper) ? 'function'
+          : RESULT_SQL_TYPES.has(upper) ? 'type' : 'identifier';
       html += wrapSqlToken(kind, word);
       index += word.length;
       continue;
@@ -755,7 +780,7 @@ function findQuotedSqlTokenEnd(sql: string, start: number, quote: string): numbe
   return sql.length;
 }
 
-function wrapSqlToken(kind: 'comment' | 'function' | 'keyword' | 'number' | 'operator' | 'plain' | 'string', token: string): string {
+function wrapSqlToken(kind: 'comment' | 'function' | 'identifier' | 'keyword' | 'number' | 'operator' | 'plain' | 'string' | 'type', token: string): string {
   const escaped = escapeSqlHtml(token);
   return kind === 'plain' ? escaped : `<span class="sql-${kind}">${escaped}</span>`;
 }

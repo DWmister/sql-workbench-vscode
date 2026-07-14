@@ -104,6 +104,8 @@ function verifyPanelPlacement() {
   assert.ok(tablePanel.includes('vscode.ViewColumn.Active'));
   assert.ok(!resultPanel.includes('vscode.ViewColumn.Beside'));
   assert.ok(!tablePanel.includes('vscode.ViewColumn.Beside'));
+  assert.ok(resultPanel.includes('max-height: min(42vh, 360px)'));
+  assert.ok(resultPanel.includes('body.vscode-light'));
 }
 
 async function verifyWorkspaceConnections() {
@@ -422,10 +424,13 @@ function verifyResultExportSerializers() {
   assert.strictEqual(firstPage.values.length, 1);
 
   const highlighted = __resultViewPanelTestHooks.highlightResultSql(
-    "SELECT DISTINCT COALESCE(name, 'x<y') FROM items WHERE id = 42 -- note",
+    "SELECT DISTINCT COALESCE(`name`, 'x<y')::VARCHAR FROM items WHERE id = 42 -- note",
   );
   assert.ok(highlighted.includes('<span class="sql-keyword">SELECT</span>'));
   assert.ok(highlighted.includes('<span class="sql-function">COALESCE</span>'));
+  assert.ok(highlighted.includes('<span class="sql-identifier">`name`</span>'));
+  assert.ok(highlighted.includes('<span class="sql-identifier">items</span>'));
+  assert.ok(highlighted.includes('<span class="sql-type">VARCHAR</span>'));
   assert.ok(highlighted.includes('<span class="sql-string">&#39;x&lt;y&#39;</span>'));
   assert.ok(highlighted.includes('<span class="sql-number">42</span>'));
   assert.ok(highlighted.includes('<span class="sql-comment">-- note</span>'));
