@@ -6,7 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.3-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.4-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -43,7 +43,8 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 ## Features
 
 - MySQL/MariaDB, PostgreSQL, and SQLite connection profiles.
-- Grouped database tree in the VS Code activity bar.
+- Grouped database tree in the VS Code activity bar. MySQL/MariaDB and PostgreSQL connections list every database available to the signed-in user, then load tables within the selected database.
+- Server connection profiles can leave the default database empty; set one only when you want it used for direct SQL execution and completions. SQLite still requires a database file path.
 - Webview connection form with save, edit, and test connection actions.
 - Shortcut connection strings such as `mysql://root:password@127.0.0.1:3306/app?name=prod&group=sr`.
 - Personal connection metadata is stored in extension `globalState`; workspace connection metadata can live in `.vscode/sql-workbench.json`.

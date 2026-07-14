@@ -2,6 +2,16 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.4 - 2026-07-14
+
+### Added
+
+- MySQL/MariaDB and PostgreSQL connection nodes now list all databases accessible to the current account, then load each database's tables with the matching connection context.
+
+### Improved
+
+- Server connection forms no longer require a default database. It remains an optional default for direct SQL execution and completion; SQLite still requires a file path.
+
 ## 0.2.3 - 2026-07-14
 
 ### Improved

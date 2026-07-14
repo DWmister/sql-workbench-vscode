@@ -6,6 +6,7 @@ import type { ConnectionConfig } from '../connection/types';
 import type { ColumnInfo, IndexInfo, TableDetails, TableInfo } from './types';
 
 export interface SchemaInspector {
+  listDatabases(connection: ConnectionConfig): Promise<string[]>;
   listTables(connection: ConnectionConfig): Promise<TableInfo[]>;
   getTableDetails(table: TableInfo): Promise<TableDetails>;
   getTableDdl(table: TableInfo): Promise<string>;
@@ -19,6 +20,17 @@ let sqlJsPromise: Promise<initSqlJs.SqlJsStatic> | undefined;
 
 export function createSchemaInspector(options: SchemaInspectorOptions = {}): SchemaInspector {
   return {
+    listDatabases(connection) {
+      if (connection.type === 'mysql') {
+        return listMysqlDatabases(connection, options);
+      }
+
+      if (connection.type === 'postgresql') {
+        return listPostgresqlDatabases(connection, options);
+      }
+
+      return Promise.resolve([]);
+    },
     listTables(connection) {
       if (connection.type === 'sqlite') {
         return listSqliteTables(connection);
@@ -65,6 +77,43 @@ export function createSchemaInspector(options: SchemaInspectorOptions = {}): Sch
       return Promise.reject(new Error(`DDL is not supported for ${table.connection.type}.`));
     },
   };
+}
+
+async function listMysqlDatabases(
+  connection: ConnectionConfig,
+  options: SchemaInspectorOptions,
+): Promise<string[]> {
+  const database = await openMysqlConnection(connection, options);
+  try {
+    const [rows] = await database.query('SHOW DATABASES;');
+    return (rows as Array<Record<string, unknown>>)
+      .map((row) => row.Database ?? Object.values(row)[0])
+      .filter((name): name is string => typeof name === 'string' && Boolean(name.trim()))
+      .sort((left, right) => left.localeCompare(right));
+  } finally {
+    await database.end();
+  }
+}
+
+async function listPostgresqlDatabases(
+  connection: ConnectionConfig,
+  options: SchemaInspectorOptions,
+): Promise<string[]> {
+  const client = await openPostgresqlClient(connection, options);
+  try {
+    const result = await client.query(`
+      SELECT datname AS name
+      FROM pg_database
+      WHERE datistemplate = false
+        AND has_database_privilege(datname, 'CONNECT')
+      ORDER BY datname;
+    `);
+    return result.rows
+      .map((row: { name?: unknown }) => row.name)
+      .filter((name): name is string => typeof name === 'string' && Boolean(name.trim()));
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
 
 async function listSqliteTables(

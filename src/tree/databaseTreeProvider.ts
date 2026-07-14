@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import {
   DatabaseConnection,
+  DatabaseCatalogTreeItem,
   DatabaseConnectionTreeItem,
   DatabaseColumnTreeItem,
   DatabaseEmptyTreeItem,
@@ -65,6 +66,13 @@ export class DatabaseTreeProvider
     element?: DatabaseTreeItem,
   ): Promise<DatabaseTreeItem[]> {
     if (element instanceof DatabaseConnectionTreeItem) {
+      if (element.connection.type !== 'sqlite') {
+        return this.createDatabaseItems(element.connection);
+      }
+      return [new DatabaseTablesTreeItem(element.connection)];
+    }
+
+    if (element instanceof DatabaseCatalogTreeItem) {
       return [new DatabaseTablesTreeItem(element.connection)];
     }
 
@@ -148,6 +156,23 @@ export class DatabaseTreeProvider
       return tables
         .sort((left, right) => this.compareNames(left.name, right.name))
         .map((table) => new DatabaseTableTreeItem(table));
+    } catch (error) {
+      return [new DatabaseEmptyTreeItem(getErrorMessage(error))];
+    }
+  }
+
+  private async createDatabaseItems(
+    connection: DatabaseConnection,
+  ): Promise<DatabaseTreeItem[]> {
+    try {
+      const databases = await this.schemaInspector.listDatabases(connection);
+      if (databases.length === 0) {
+        return [new DatabaseEmptyTreeItem('No databases found', '')];
+      }
+
+      return databases
+        .sort((left, right) => this.compareNames(left, right))
+        .map((database) => new DatabaseCatalogTreeItem({ ...connection, database }));
     } catch (error) {
       return [new DatabaseEmptyTreeItem(getErrorMessage(error))];
     }

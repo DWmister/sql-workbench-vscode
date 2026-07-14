@@ -32,6 +32,7 @@ export interface DatabaseConnection extends ConnectionConfig {
 export type DatabaseTreeItem =
   | DatabaseGroupTreeItem
   | DatabaseConnectionTreeItem
+  | DatabaseCatalogTreeItem
   | DatabaseTablesTreeItem
   | DatabaseTableTreeItem
   | DatabaseColumnTreeItem
@@ -80,13 +81,25 @@ export class DatabaseConnectionTreeItem extends vscode.TreeItem {
   }
 }
 
+export class DatabaseCatalogTreeItem extends vscode.TreeItem {
+  public readonly contextValue = 'database';
+
+  constructor(public readonly connection: DatabaseConnection) {
+    super(connection.database ?? 'Database', vscode.TreeItemCollapsibleState.Collapsed);
+
+    this.id = `sqlWorkbench.connection.${connection.id}.database.${connection.database ?? ''}`;
+    this.iconPath = new vscode.ThemeIcon('database');
+    this.tooltip = `${connection.name}\nDatabase: ${connection.database ?? '-'}`;
+  }
+}
+
 export class DatabaseTablesTreeItem extends vscode.TreeItem {
   public readonly contextValue = 'tables';
 
   constructor(public readonly connection: DatabaseConnection) {
     super('Tables', vscode.TreeItemCollapsibleState.Collapsed);
 
-    this.id = `sqlWorkbench.connection.${connection.id}.tables`;
+    this.id = `sqlWorkbench.connection.${connection.id}.${connection.database ?? ''}.tables`;
     this.iconPath = new vscode.ThemeIcon('list-tree');
     this.tooltip = `Tables in ${connection.name}`;
   }
@@ -100,7 +113,7 @@ export class DatabaseTableTreeItem extends vscode.TreeItem {
 
     const suffix = table.schema ? `${table.schema}.${table.name}` : table.name;
 
-    this.id = `sqlWorkbench.connection.${table.connection.id}.table.${suffix}`;
+    this.id = `sqlWorkbench.connection.${table.connection.id}.${table.connection.database ?? ''}.table.${suffix}`;
     this.iconPath = new vscode.ThemeIcon('table');
     this.tooltip = `${suffix}\nClick to inspect columns.`;
     this.command = {
@@ -123,6 +136,7 @@ export class DatabaseColumnTreeItem extends vscode.TreeItem {
     this.id = [
       'sqlWorkbench',
       table.connection.id,
+      table.connection.database ?? '',
       table.schema ?? '',
       table.name,
       column.ordinal,

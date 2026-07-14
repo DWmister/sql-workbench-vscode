@@ -123,10 +123,6 @@ function validateDraftConnection(input: DraftConnectionConfig): string | undefin
     return 'Port must be an integer.';
   }
 
-  if (!input.database?.trim()) {
-    return 'Database is required.';
-  }
-
   if (!input.username?.trim()) {
     return 'Username is required.';
   }
@@ -423,8 +419,8 @@ function renderConnectionFormHtml(webview: vscode.Webview, initialConnection?: C
         <label class="server-only" for="password">密码</label>
         <input class="server-only" id="password" type="password" autocomplete="off" placeholder="${passwordPlaceholder}">
 
-        <label class="required server-only" for="database">数据库</label>
-        <input class="server-only wide" id="database" autocomplete="off" placeholder="目标数据库">
+        <label class="server-only" for="database">默认数据库（可选）</label>
+        <input class="server-only wide" id="database" autocomplete="off" placeholder="留空后可浏览当前主机的全部数据库">
 
         <label class="required sqlite-only" for="path">数据库文件</label>
         <input class="sqlite-only wide" id="path" autocomplete="off" placeholder="/path/to/database.sqlite">

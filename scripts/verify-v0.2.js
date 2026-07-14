@@ -31,6 +31,12 @@ const { compileSqlVariables, getSqlVariableNames } = require(path.join(outDir, '
 const { registerSqlCodeLensProvider } = require(path.join(outDir, 'query', 'sqlCodeLensProvider'));
 const { registerSqlCompletionProvider } = require(path.join(outDir, 'completion', 'sqlCompletionProvider'));
 const { registerSqlHoverProvider } = require(path.join(outDir, 'completion', 'sqlHoverProvider'));
+const { DatabaseTreeProvider } = require(path.join(outDir, 'tree', 'databaseTreeProvider'));
+const {
+  DatabaseCatalogTreeItem,
+  DatabaseConnectionTreeItem,
+  DatabaseTablesTreeItem,
+} = require(path.join(outDir, 'tree', 'treeItems'));
 const { __connectionFormPanelTestHooks } = require(path.join(outDir, 'connection', 'connectionFormPanel'));
 const { __resultViewPanelTestHooks } = require(path.join(outDir, 'results', 'resultViewPanel'));
 const { TableDetailsPanel, __tableDetailsPanelTestHooks } = require(path.join(outDir, 'schema', 'tableDetailsPanel'));
@@ -54,6 +60,7 @@ async function main() {
   await verifyDocumentBindingRestore();
   await verifyConnectionSecrets();
   await verifyWorkspaceConnections();
+  await verifyDatabaseTree();
   await verifySqliteReadOnlyResults();
   verifyConnectionFormRendering();
   await verifyTableDetailsPanel();
@@ -181,6 +188,58 @@ async function verifyWorkspaceConnections() {
     vscodeMock.workspace.workspaceFolders = [];
     vscodeMock.window.messages = [];
   }
+}
+
+async function verifyDatabaseTree() {
+  const connection = {
+    id: 'tree-mysql',
+    name: 'Tree MySQL',
+    type: 'mysql',
+    group: 'Verify',
+    host: '127.0.0.1',
+    username: 'root',
+  };
+  const loadedConnections = [];
+  const tree = new DatabaseTreeProvider({
+    connectionStore: { list() { return [connection]; } },
+    schemaInspector: {
+      async listDatabases() { return ['analytics', 'app']; },
+      async listTables(selectedConnection) {
+        return [{
+          connection: selectedConnection,
+          schema: selectedConnection.database,
+          name: 'orders',
+        }];
+      },
+      async getTableDetails(table) {
+        return { ...table, columns: [] };
+      },
+      async getTableDdl() { return 'CREATE TABLE orders ();'; },
+    },
+    onTablesLoaded(selectedConnection) {
+      loadedConnections.push(selectedConnection);
+    },
+  });
+
+  const databases = await tree.getChildren(new DatabaseConnectionTreeItem(connection));
+  assert.strictEqual(databases.length, 2);
+  assert.ok(databases.every((item) => item instanceof DatabaseCatalogTreeItem));
+  assert.deepStrictEqual(databases.map((item) => item.connection.database), ['analytics', 'app']);
+
+  const tablesNode = (await tree.getChildren(databases[0]))[0];
+  assert.ok(tablesNode instanceof DatabaseTablesTreeItem);
+  const tables = await tree.getChildren(tablesNode);
+  assert.strictEqual(tables[0].table.connection.database, 'analytics');
+  assert.strictEqual(loadedConnections[0].database, 'analytics');
+
+  const sqliteTables = await tree.getChildren(new DatabaseConnectionTreeItem({
+    id: 'tree-sqlite',
+    name: 'Tree SQLite',
+    type: 'sqlite',
+    group: 'Verify',
+    path: '/tmp/tree.sqlite',
+  }));
+  assert.ok(sqliteTables[0] instanceof DatabaseTablesTreeItem);
 }
 
 function writeWorkspaceConnections(root, content) {
@@ -492,6 +551,8 @@ function verifyConnectionFormRendering() {
   const addHtml = __connectionFormPanelTestHooks.renderConnectionFormHtml(webview);
   assert.ok(addHtml.includes('const initial = null;'));
   assert.ok(addHtml.includes('<h1>连接至服务</h1>'));
+  assert.ok(addHtml.includes('默认数据库（可选）'));
+  assert.ok(!addHtml.includes('class="required server-only" for="database"'));
 
   const editHtml = __connectionFormPanelTestHooks.renderConnectionFormHtml(webview, {
     id: 'edit-me',
@@ -614,6 +675,9 @@ async function verifyDriverTableDdl() {
     mysqlModule.createConnection = async () => ({
       async query(sql) {
         mysqlQueries.push(sql);
+        if (String(sql).includes('SHOW DATABASES')) {
+          return [[{ Database: 'analytics' }, { Database: 'app' }]];
+        }
         return [[{
           Table: 'order`items',
           'Create Table': 'CREATE TABLE `order``items` (`id` bigint NOT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB',
@@ -630,6 +694,9 @@ async function verifyDriverTableDdl() {
       async query(sql, params) {
         pgQueries.push({ sql: String(sql), params });
         const text = String(sql);
+        if (text.includes('FROM pg_database')) {
+          return { rows: [{ name: 'analytics' }, { name: 'app' }] };
+        }
         if (text.includes('c.oid::text AS oid')) {
           return {
             rows: [{
@@ -691,32 +758,40 @@ async function verifyDriverTableDdl() {
     };
 
     const inspector = createSchemaInspector();
+    const mysqlConnection = {
+      id: 'mysql-ddl',
+      name: 'MySQL DDL',
+      type: 'mysql',
+      group: 'Verify',
+      host: '127.0.0.1',
+      username: 'root',
+    };
+    assert.deepStrictEqual(await inspector.listDatabases(mysqlConnection), ['analytics', 'app']);
     const mysqlDdl = await inspector.getTableDdl({
       connection: {
-        id: 'mysql-ddl',
-        name: 'MySQL DDL',
-        type: 'mysql',
-        group: 'Verify',
-        host: '127.0.0.1',
+        ...mysqlConnection,
         database: 'team`a',
-        username: 'root',
       },
       schema: 'team`a',
       name: 'order`items',
     });
-    assert.strictEqual(mysqlQueries[0], 'SHOW CREATE TABLE `team``a`.`order``items`;');
+    assert.ok(mysqlQueries.includes('SHOW CREATE TABLE `team``a`.`order``items`;'));
     assert.ok(mysqlDdl.endsWith('ENGINE=InnoDB;'));
     assert.strictEqual(mysqlEnded, true);
 
+    const postgresqlConnection = {
+      id: 'pg-ddl',
+      name: 'PostgreSQL DDL',
+      type: 'postgresql',
+      group: 'Verify',
+      host: '127.0.0.1',
+      username: 'postgres',
+    };
+    assert.deepStrictEqual(await inspector.listDatabases(postgresqlConnection), ['analytics', 'app']);
     const postgresqlDdl = await inspector.getTableDdl({
       connection: {
-        id: 'pg-ddl',
-        name: 'PostgreSQL DDL',
-        type: 'postgresql',
-        group: 'Verify',
-        host: '127.0.0.1',
+        ...postgresqlConnection,
         database: 'app',
-        username: 'postgres',
       },
       schema: 'team"a',
       name: 'order"items',
@@ -728,7 +803,10 @@ async function verifyDriverTableDdl() {
     assert.ok(postgresqlDdl.includes('CREATE INDEX order_items_name_idx'));
     assert.ok(postgresqlDdl.includes("COMMENT ON TABLE \"team\"\"a\".\"order\"\"items\" IS 'Customer''s orders';"));
     assert.ok(postgresqlDdl.includes('COMMENT ON COLUMN "team""a"."order""items"."id" IS \'Primary id\';'));
-    assert.deepStrictEqual(pgQueries[0].params, ['team"a', 'order"items']);
+    assert.deepStrictEqual(
+      pgQueries.find((query) => query.sql.includes('c.oid::text AS oid')).params,
+      ['team"a', 'order"items'],
+    );
     assert.strictEqual(pgEnded, true);
   } finally {
     mysqlModule.createConnection = originalCreateConnection;
@@ -1608,6 +1686,31 @@ function createVscodeMock() {
         this.completionItemProviders.push({ selector, provider, triggerCharacters });
         return { dispose() {} };
       },
+    },
+    EventEmitter: class EventEmitter {
+      constructor() {
+        this.event = () => ({ dispose() {} });
+      }
+
+      fire() {}
+    },
+    TreeItem: class TreeItem {
+      constructor(label, collapsibleState) {
+        this.label = label;
+        this.collapsibleState = collapsibleState;
+      }
+    },
+    TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    ThemeColor: class ThemeColor {
+      constructor(id) {
+        this.id = id;
+      }
+    },
+    ThemeIcon: class ThemeIcon {
+      constructor(id, color) {
+        this.id = id;
+        this.color = color;
+      }
     },
     window: {
       messages: [],
