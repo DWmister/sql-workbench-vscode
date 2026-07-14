@@ -25,6 +25,7 @@ const { createSchemaInspector } = require(path.join(outDir, 'schema', 'inspector
 const { findStatementAtOffset, getSqlStatementRanges, splitSqlStatements } = require(path.join(outDir, 'query', 'sqlParser'));
 const { extractSelectedOrCurrentStatement } = require(path.join(outDir, 'query', 'sqlExtractor'));
 const { __queryCommandTestHooks } = require(path.join(outDir, 'query', 'commands'));
+const { getWebviewViewColumn } = require(path.join(outDir, 'editor', 'webviewColumn'));
 const { findDangerousSqlStatements } = require(path.join(outDir, 'query', 'sqlSafety'));
 const { compileSqlVariables, getSqlVariableNames } = require(path.join(outDir, 'query', 'sqlVariables'));
 const { registerSqlCodeLensProvider } = require(path.join(outDir, 'query', 'sqlCodeLensProvider'));
@@ -43,6 +44,7 @@ async function main() {
   verifyProductText();
   verifyCompletionDefaults();
   verifyPanelPlacement();
+  verifyWebviewColumnPreference();
   verifyCodeLensProvider();
   await verifyCompletionProviderFastTablePath();
   await verifyHoverProvider();
@@ -100,12 +102,31 @@ function verifyCompletionDefaults() {
 function verifyPanelPlacement() {
   const resultPanel = fs.readFileSync(path.join(repoRoot, 'src', 'results', 'resultViewPanel.ts'), 'utf8');
   const tablePanel = fs.readFileSync(path.join(repoRoot, 'src', 'schema', 'tableDetailsPanel.ts'), 'utf8');
-  assert.ok(resultPanel.includes('vscode.ViewColumn.Active'));
-  assert.ok(tablePanel.includes('vscode.ViewColumn.Active'));
-  assert.ok(!resultPanel.includes('vscode.ViewColumn.Beside'));
-  assert.ok(!tablePanel.includes('vscode.ViewColumn.Beside'));
+  const connectionPanel = fs.readFileSync(path.join(repoRoot, 'src', 'connection', 'connectionFormPanel.ts'), 'utf8');
+  assert.ok(resultPanel.includes('getWebviewViewColumn'));
+  assert.ok(tablePanel.includes('getWebviewViewColumn'));
+  assert.ok(connectionPanel.includes('getWebviewViewColumn'));
   assert.ok(resultPanel.includes('max-height: min(42vh, 360px)'));
   assert.ok(resultPanel.includes('body.vscode-light'));
+}
+
+function verifyWebviewColumnPreference() {
+  const originalTabGroups = vscodeMock.window.tabGroups;
+  try {
+    vscodeMock.window.tabGroups = {
+      all: [{ viewColumn: 1 }],
+      activeTabGroup: { viewColumn: 1 },
+    };
+    assert.strictEqual(getWebviewViewColumn(), vscodeMock.ViewColumn.Beside);
+
+    vscodeMock.window.tabGroups = {
+      all: [{ viewColumn: 1 }, { viewColumn: 2 }],
+      activeTabGroup: { viewColumn: 1 },
+    };
+    assert.strictEqual(getWebviewViewColumn(), 1);
+  } finally {
+    vscodeMock.window.tabGroups = originalTabGroups;
+  }
 }
 
 async function verifyWorkspaceConnections() {
@@ -821,6 +842,14 @@ async function verifySqliteReadOnlyResults() {
 
     const [page] = await runner.execute(connection, 'SELECT * FROM items');
     assert.deepStrictEqual(page.rows[0], [1, 'apple', 3]);
+    const [commentedPage] = await runner.execute(connection, [
+      'SELECT * FROM items',
+      '-- keep this trailing comment',
+      ';',
+    ].join('\n'));
+    assert.strictEqual(commentedPage.error, undefined);
+    assert.deepStrictEqual(commentedPage.rows[0], [1, 'apple', 3]);
+    assert.ok(commentedPage.pagination);
     assert.strictEqual('editable' in page, false);
     assert.strictEqual('updateCell' in runner, false);
   } finally {
@@ -1026,6 +1055,10 @@ function verifyResultWebviewScript() {
           ViewColumn: { Active: -1, Beside: 2 },
           Uri: { file(value) { return value; } },
         };
+      }
+
+      if (name === '../editor/webviewColumn') {
+        return require(path.join(outDir, 'editor', 'webviewColumn'));
       }
 
       return require(name);
@@ -1580,6 +1613,10 @@ function createVscodeMock() {
       messages: [],
       infoMessages: [],
       nextInformationMessage: undefined,
+      tabGroups: {
+        all: [{ viewColumn: 1 }],
+        activeTabGroup: { viewColumn: 1 },
+      },
       showInformationMessage(message) {
         this.infoMessages.push(message);
         const selected = this.nextInformationMessage;

@@ -2,6 +2,16 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.3 - 2026-07-14
+
+### Improved
+
+- Results, table properties, and connection forms open beside a single editor column, then reuse the active group once the editor is already split.
+
+### Fixed
+
+- Server-side result pagination now safely handles a final line comment followed by a semicolon, so generated count and page SQL are not swallowed by the comment.
+
 ## 0.2.2 - 2026-07-13
 
 ### Improved

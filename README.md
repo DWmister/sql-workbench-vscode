@@ -6,7 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.2-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.3-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -57,7 +57,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 - `Cmd+Enter` on macOS or `Ctrl+Enter` on Windows/Linux runs the current SQL statement.
 - Result webview with syntax-colored executed SQL, Table/JSON modes, pagination, CSV/JSON/XLSX export, and a read-only JSON/JSONB cell viewer.
 - Read-only schema tree: connection -> tables -> table -> columns.
-- Read-only table properties opened in the active editor group with Columns and on-demand DDL tabs.
+- Results, read-only table properties, and connection forms open beside the editor from a single-column layout, then reuse an existing editor group instead of creating more splits.
 
 ## Quick Start
 
@@ -175,7 +175,7 @@ CHROME_PATH="/path/to/chrome" npm run screenshots
 8. SQL CodeLens actions use the same statement parser as keyboard execution, so semicolons inside strings or comments do not split statements.
 9. SQL hovers use the bound connection's schema metadata to show lightweight table summaries without generating full DDL.
 10. Table properties load full DDL only when the DDL tab opens; MySQL uses `SHOW CREATE TABLE`, SQLite reads `sqlite_schema`, and PostgreSQL reconstructs migration-oriented DDL from system catalogs.
-11. SQL Results and Table Properties open in the active editor group instead of creating a split editor.
+11. From a single editor column, SQL Results, Table Properties, and connection forms open beside the active editor; once split, they reuse the active editor group.
 12. Result exports are written by the extension host after a VS Code save dialog; the webview never receives filesystem write access.
 13. Only JSON/JSONB result columns expose the read-only cell viewer; other data types remain plain cells until dedicated viewers are added.
 

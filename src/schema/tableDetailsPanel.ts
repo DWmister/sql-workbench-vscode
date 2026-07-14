@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getWebviewViewColumn } from '../editor/webviewColumn';
 import type { ColumnInfo, TableDetails, TableInfo } from './types';
 
 export interface TableDetailsPanelOptions {
@@ -27,12 +28,13 @@ export class TableDetailsPanel implements vscode.Disposable {
     this.currentDdl = undefined;
     this.tableVersion += 1;
     this.ddlRequestId += 1;
+    const viewColumn = this.panel?.viewColumn ?? getWebviewViewColumn();
 
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         'sqlWorkbench.tableDetails',
         'Table Properties',
-        vscode.ViewColumn.Active,
+        viewColumn,
         {
           enableScripts: true,
           localResourceRoots: [this.extensionUri],
@@ -51,7 +53,7 @@ export class TableDetailsPanel implements vscode.Disposable {
 
     this.panel.title = details.name;
     this.panel.webview.html = renderTableDetailsHtml(this.panel.webview, details);
-    this.panel.reveal(vscode.ViewColumn.Active, false);
+    this.panel.reveal(viewColumn, false);
   }
 
   public dispose(): void {

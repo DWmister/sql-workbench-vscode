@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getWebviewViewColumn } from '../editor/webviewColumn';
 import type { ConnectionConfig } from './types';
 import {
   type ConnectionTestResult,
@@ -28,11 +29,12 @@ export class ConnectionFormPanel implements vscode.Disposable {
 
   public show(connection?: ConnectionConfig): void {
     this.editingConnection = connection;
+    const viewColumn = this.panel?.viewColumn ?? getWebviewViewColumn();
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         'sqlWorkbench.connectionForm',
         connection ? 'Edit Connection' : 'Add Connection',
-        vscode.ViewColumn.Beside,
+        viewColumn,
         {
           enableScripts: true,
           localResourceRoots: [this.extensionUri],
@@ -51,7 +53,7 @@ export class ConnectionFormPanel implements vscode.Disposable {
 
     this.panel.title = connection ? 'Edit Connection' : 'Add Connection';
     this.panel.webview.html = renderConnectionFormHtml(this.panel.webview, connection);
-    this.panel.reveal(vscode.ViewColumn.Beside, false);
+    this.panel.reveal(viewColumn, false);
   }
 
   public dispose(): void {

@@ -709,7 +709,7 @@ function toPagination(
 }
 
 function trimSql(sql: string): string {
-  return sql.trim().replace(/;+$/u, '').trimEnd();
+  return sql.trim().replace(/;+$/u, '').trimEnd() + '\n';
 }
 
 function normalizeCount(value: unknown): number {

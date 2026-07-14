@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getWebviewViewColumn } from '../editor/webviewColumn';
 import type { QueryColumn, QueryResult, QueryResultPagination, QueryValue } from './types';
 
 export interface ResultPageRequest {
@@ -73,12 +74,13 @@ export class ResultViewPanel {
   public show(results: QueryResult[]): void {
     this.lastPayload = toPayload(results, getResultPageSize());
     this.paginationVariables = getPaginationVariables(results);
+    const viewColumn = this.panel?.viewColumn ?? getWebviewViewColumn();
 
     if (!this.panel) {
       this.panel = vscode.window.createWebviewPanel(
         'sqlWorkbench.results',
         'SQL Results',
-        vscode.ViewColumn.Active,
+        viewColumn,
         {
           enableScripts: true,
           localResourceRoots: [this.extensionUri],
@@ -97,7 +99,7 @@ export class ResultViewPanel {
     }
 
     this.panel.webview.html = renderResultsHtml(this.panel.webview);
-    this.panel.reveal(vscode.ViewColumn.Active, false);
+    this.panel.reveal(viewColumn, false);
     setTimeout(() => this.postResults(), 0);
   }
 
