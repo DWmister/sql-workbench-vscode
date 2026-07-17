@@ -6,6 +6,10 @@ import { Client } from 'pg';
 import initSqlJs = require('sql.js');
 import type { ConnectionConfig } from '../connection/types';
 import type { QueryColumn, QueryResult, QueryRow, QueryValue } from '../results/types';
+import {
+  resolveMysqlColumnSources,
+  type MysqlColumnSource,
+} from './mysqlColumnSources';
 import { splitSqlStatements } from './sqlParser';
 import { compileSqlVariables, type SqlVariableDialect } from './sqlVariables';
 
@@ -34,6 +38,7 @@ export interface QueryPageRequest {
 
 export interface QueryRunnerOptions {
   getPassword?: (connectionId: string) => Promise<string | undefined>;
+  reportMetadataWarning?: (message: string) => void;
 }
 
 let sqlJsPromise: Promise<initSqlJs.SqlJsStatic> | undefined;
@@ -41,6 +46,26 @@ let sqlJsPromise: Promise<initSqlJs.SqlJsStatic> | undefined;
 interface NormalizedQueryInput {
   sql: string;
   variableValues: Record<string, unknown>;
+}
+
+interface MysqlColumnCommentRow {
+  source_schema: string;
+  source_table: string;
+  source_column: string;
+  comment: unknown;
+}
+
+interface PostgresqlResultField {
+  name: string;
+  dataTypeID: number;
+  tableID?: number;
+  columnID?: number;
+}
+
+interface PostgresqlColumnCommentRow {
+  table_id: string | number;
+  column_id: string | number;
+  comment: unknown;
 }
 
 export function createQueryRunner(options: QueryRunnerOptions = {}): QueryRunner {
@@ -247,7 +272,17 @@ async function executeMysql(
     });
 
     if (statements.length === 1 && isPageableSelect(statements[0])) {
-      results.push(await executeMysqlPage(database, connection, statements[0], query.variableValues, 1, getResultPageSize(executionOptions), undefined, queryTimeoutMs));
+      results.push(await executeMysqlPage(
+        database,
+        connection,
+        statements[0],
+        query.variableValues,
+        1,
+        getResultPageSize(executionOptions),
+        undefined,
+        queryTimeoutMs,
+        options.reportMetadataWarning,
+      ));
       return results;
     }
 
@@ -256,7 +291,16 @@ async function executeMysql(
       try {
         const compiled = compileQuery(statement, query.variableValues, 'mysql');
         const [rows, fields] = await database.query({ sql: compiled.sql, timeout: queryTimeoutMs }, compiled.params);
-        const result = toMysqlResult(connection, statement, rows, fields, roundElapsed(start));
+        const result = await toMysqlResult(
+          database,
+          connection,
+          statement,
+          rows,
+          fields,
+          roundElapsed(start),
+          queryTimeoutMs,
+          options.reportMetadataWarning,
+        );
         results.push(result);
       } catch (error) {
         results.push(createErrorResult(connection, statement, getErrorMessage(error), roundElapsed(start)));
@@ -292,7 +336,17 @@ async function fetchMysqlPage(
       multipleStatements: false,
       connectTimeout: queryTimeoutMs,
     });
-    return await executeMysqlPage(database, connection, request.sql, request.variableValues ?? {}, request.page, request.pageSize, request.totalRows, queryTimeoutMs);
+    return await executeMysqlPage(
+      database,
+      connection,
+      request.sql,
+      request.variableValues ?? {},
+      request.page,
+      request.pageSize,
+      request.totalRows,
+      queryTimeoutMs,
+      options.reportMetadataWarning,
+    );
   } catch (error) {
     return createErrorResult(connection, request.sql, getErrorMessage(error), 0);
   } finally {
@@ -309,6 +363,7 @@ async function executeMysqlPage(
   pageSize: number,
   knownTotalRows: number | undefined,
   queryTimeoutMs: number,
+  reportMetadataWarning?: (message: string) => void,
 ): Promise<QueryResult> {
   const start = performance.now();
 
@@ -316,7 +371,16 @@ async function executeMysqlPage(
     const compiled = compileQuery(sql, variableValues, 'mysql');
     const totalRows = knownTotalRows ?? await getMysqlCount(database, sql, variableValues, queryTimeoutMs);
     const [rows, fields] = await database.query({ sql: toPageSql(compiled.sql, page, pageSize), timeout: queryTimeoutMs }, compiled.params);
-    const result = toMysqlResult(connection, sql, rows, fields, roundElapsed(start));
+    const result = await toMysqlResult(
+      database,
+      connection,
+      sql,
+      rows,
+      fields,
+      roundElapsed(start),
+      queryTimeoutMs,
+      reportMetadataWarning,
+    );
 
     return {
       ...result,
@@ -371,14 +435,12 @@ async function executePostgresql(
       try {
         const compiled = compileQuery(statement, query.variableValues, 'postgresql');
         const result = await client.query(compiled.sql, compiled.params);
-        const columns = result.fields.map((field): QueryColumn => ({
-          name: field.name,
-          type: normalizePostgresqlColumnType(field.dataTypeID),
-        }));
+        const elapsedMs = roundElapsed(start);
+        const columns = await createPostgresqlColumns(client, result.fields);
         const rows = result.rows.map((row) => columns.map((column) => normalizeValue(row[column.name])));
 
         results.push({
-          ...resultBase(connection, statement, roundElapsed(start)),
+          ...resultBase(connection, statement, elapsedMs),
           columns,
           rows,
           rowCount: rows.length,
@@ -441,14 +503,12 @@ async function executePostgresqlPage(
     const compiled = compileQuery(sql, variableValues, 'postgresql');
     const totalRows = knownTotalRows ?? await getPostgresqlCount(client, sql, variableValues);
     const result = await client.query(toPageSql(compiled.sql, page, pageSize), compiled.params);
-    const columns = result.fields.map((field): QueryColumn => ({
-      name: field.name,
-      type: normalizePostgresqlColumnType(field.dataTypeID),
-    }));
+    const elapsedMs = roundElapsed(start);
+    const columns = await createPostgresqlColumns(client, result.fields);
     const rows = result.rows.map((row) => columns.map((column) => normalizeValue(row[column.name])));
 
     return {
-      ...resultBase(connection, sql, roundElapsed(start)),
+      ...resultBase(connection, sql, elapsedMs),
       columns,
       rows,
       rowCount: totalRows,
@@ -466,19 +526,34 @@ async function getPostgresqlCount(client: Client, sql: string, variableValues: R
 }
 
 
-function toMysqlResult(
+async function toMysqlResult(
+  database: mysql.Connection,
   connection: ConnectionConfig,
   sql: string,
   rows: unknown,
   fields: mysql.FieldPacket[] | mysql.FieldPacket[][] | undefined,
   elapsedMs: number,
-): QueryResult {
+  queryTimeoutMs: number,
+  reportMetadataWarning?: (message: string) => void,
+): Promise<QueryResult> {
   const fieldList = Array.isArray(fields) && !Array.isArray(fields[0])
     ? fields as mysql.FieldPacket[]
     : [];
-  const columns = fieldList.map((field): QueryColumn => ({
+  const defaultSchema = connection.database ?? '';
+  const columnSources = resolveMysqlColumnSources(sql, fieldList, defaultSchema);
+  const comments = await getMysqlColumnComments(
+    database,
+    columnSources,
+    queryTimeoutMs,
+    reportMetadataWarning,
+  ).catch((error) => {
+    reportMetadataWarning?.(`MySQL result column comments could not be loaded: ${getErrorMessage(error)}`);
+    return new Map<string, string>();
+  });
+  const columns = fieldList.map((field, index): QueryColumn => ({
     name: field.name,
     type: normalizeMysqlColumnType(field.type),
+    comment: getMysqlColumnSourceComment(comments, columnSources[index]),
   }));
 
   if (Array.isArray(rows)) {
@@ -506,6 +581,156 @@ function toMysqlResult(
     rowCount: 0,
     affectedRows,
   };
+}
+
+async function getMysqlColumnComments(
+  database: mysql.Connection,
+  columnSources: Array<MysqlColumnSource | undefined>,
+  queryTimeoutMs: number,
+  reportMetadataWarning?: (message: string) => void,
+): Promise<Map<string, string>> {
+  const sources = new Map<string, [string, string, string]>();
+
+  for (const source of columnSources) {
+    if (!source) {
+      continue;
+    }
+
+    const sourceTuple: [string, string, string] = [source.schema, source.table, source.column];
+    sources.set(getColumnSourceKey(sourceTuple), sourceTuple);
+  }
+
+  if (sources.size === 0) {
+    if (columnSources.length > 0) {
+      reportMetadataWarning?.('MySQL result columns could not be mapped to source table columns; column comments were skipped.');
+    }
+    return new Map();
+  }
+
+  const sourceList = [...sources.values()];
+  const conditions = sourceList
+    .map(() => '(table_schema = ? AND table_name = ? AND column_name = ?)')
+    .join(' OR ');
+  const params = sourceList.flat();
+  const [rows] = await database.query({
+    sql: `
+      SELECT
+        table_schema AS source_schema,
+        table_name AS source_table,
+        column_name AS source_column,
+        column_comment AS comment
+      FROM information_schema.columns
+      WHERE ${conditions};
+    `,
+    timeout: queryTimeoutMs,
+  }, params);
+  const comments = new Map<string, string>();
+
+  for (const row of rows as MysqlColumnCommentRow[]) {
+    const comment = normalizeColumnComment(row.comment);
+    if (comment) {
+      comments.set(
+        getColumnSourceKey([row.source_schema, row.source_table, row.source_column]),
+        comment,
+      );
+    }
+  }
+
+  return comments;
+}
+
+function getMysqlColumnSourceComment(
+  comments: Map<string, string>,
+  source: MysqlColumnSource | undefined,
+): string | undefined {
+  return source
+    ? comments.get(getColumnSourceKey([source.schema, source.table, source.column]))
+    : undefined;
+}
+
+function getColumnSourceKey(parts: Array<string | number>): string {
+  return JSON.stringify(parts);
+}
+
+async function createPostgresqlColumns(
+  client: Client,
+  fields: PostgresqlResultField[],
+): Promise<QueryColumn[]> {
+  const comments = await getPostgresqlColumnComments(client, fields)
+    .catch(() => new Map<string, string>());
+
+  return fields.map((field): QueryColumn => ({
+    name: field.name,
+    type: normalizePostgresqlColumnType(field.dataTypeID),
+    comment: comments.get(getPostgresqlFieldSourceKey(field)),
+  }));
+}
+
+async function getPostgresqlColumnComments(
+  client: Client,
+  fields: PostgresqlResultField[],
+): Promise<Map<string, string>> {
+  const sources = new Map<string, [number, number]>();
+
+  for (const field of fields) {
+    const tableId = Number(field.tableID);
+    const columnId = Number(field.columnID);
+    if (tableId <= 0 || columnId <= 0) {
+      continue;
+    }
+
+    const source: [number, number] = [tableId, columnId];
+    sources.set(getColumnSourceKey(source), source);
+  }
+
+  if (sources.size === 0) {
+    return new Map();
+  }
+
+  const sourceList = [...sources.values()];
+  const params = sourceList.flat();
+  const conditions = sourceList.map((_, index) => {
+    const parameter = index * 2 + 1;
+    return `(description.objoid = $${parameter}::oid AND description.objsubid = $${parameter + 1}::int)`;
+  });
+  const result = await client.query(
+    `
+      SELECT
+        description.objoid::text AS table_id,
+        description.objsubid::int AS column_id,
+        description.description AS comment
+      FROM pg_description description
+      WHERE description.classoid = 'pg_class'::regclass
+        AND (${conditions.join(' OR ')});
+    `,
+    params,
+  );
+  const comments = new Map<string, string>();
+
+  for (const row of result.rows as PostgresqlColumnCommentRow[]) {
+    const comment = normalizeColumnComment(row.comment);
+    if (comment) {
+      comments.set(
+        getColumnSourceKey([Number(row.table_id), Number(row.column_id)]),
+        comment,
+      );
+    }
+  }
+
+  return comments;
+}
+
+function getPostgresqlFieldSourceKey(field: PostgresqlResultField): string {
+  return getColumnSourceKey([Number(field.tableID), Number(field.columnID)]);
+}
+
+function normalizeColumnComment(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized || undefined;
 }
 
 function normalizeMysqlColumnType(type: number | undefined): string | undefined {

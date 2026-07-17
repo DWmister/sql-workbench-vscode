@@ -19,14 +19,17 @@ export function findStatementAtOffset(
 ): SqlStatementRange | undefined {
   const ranges = scanStatementRanges(sql);
 
-  for (const range of ranges) {
+  for (const [index, range] of ranges.entries()) {
     if (offset >= range.start && offset <= range.end) {
       return range;
     }
+
+    if (offset < range.start) {
+      return ranges[index - 1] ?? range;
+    }
   }
 
-  return ranges.find((range) => range.start >= offset)
-    ?? ranges.at(-1);
+  return ranges.at(-1);
 }
 
 function scanStatementRanges(sql: string): SqlStatementRange[] {

@@ -222,7 +222,10 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }),
     ...registerQueryCommands(context, {
-      runner: createQueryRunner({ getPassword }),
+      runner: createQueryRunner({
+        getPassword,
+        reportMetadataWarning: (message) => console.warn(`[SQL Workbench] ${message}`),
+      }),
       resolveConnection: async (document) => {
         if (document) {
           const restored = await activeConnection.restoreDocumentBinding(document);

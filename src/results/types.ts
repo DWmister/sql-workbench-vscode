@@ -5,6 +5,7 @@ export type QueryRow = QueryValue[];
 export interface QueryColumn {
   name: string;
   type?: string;
+  comment?: string;
 }
 
 export interface QueryResultPagination {

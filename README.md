@@ -6,7 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.4-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.6-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -189,10 +189,11 @@ Result grids and table properties are read-only in every version. The extension 
 - **All versions:** result grids and table properties remain read-only; data and schema changes are SQL-only. Additional cell viewers may be added only as read-only tools.
 - `0.1.x`: MVP query workflow, SQL completion refinements, and connection-form polish.
 - `0.2.x`: CSV/JSON/XLSX result export, JSON result view, SQL variables, dangerous SQL confirmation, workspace connections, SQL file connection binding, richer connection editing, DDL hover and table-property DDL, CodeLens run actions, and high-frequency Premium-style enhancements.
+- `0.2.x`: Result-column comments and current-statement execution improvements.
 - `0.2.x`: Extension-level configuration for custom execution shortcuts.
 - `0.2.x`: Better packaging through bundling to reduce VSIX size.
 - `0.2.x`: Richer connection editing and import/export.
-- `0.3.x`: Query history and result workflow refinements.
+- `0.3.x`: Query history, result workflow refinements, and multi-table wildcard column comments.
 - `1.0.0`: Complete planned feature set.
 
 ## FAQ

@@ -4,6 +4,13 @@ scripts
 *.sql
 .gitignore
 tsconfig.json
+.trellis
+.trellis/**
+.agents
+.agents/**
+.codex
+.codex/**
+AGENTS.md
 database-client-competitive-analysis.md
 database-client-roadmap.html
 mvp-product-prototype.html

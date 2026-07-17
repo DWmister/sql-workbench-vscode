@@ -19,6 +19,7 @@ Module._load = function loadWithVscodeMock(request, parent, isMain) {
 };
 
 const { createQueryRunner } = require(path.join(outDir, 'query', 'runner'));
+const { resolveMysqlColumnSources } = require(path.join(outDir, 'query', 'mysqlColumnSources'));
 const { ConnectionStore } = require(path.join(outDir, 'connection', 'connectionStore'));
 const { WorkspaceConnectionStore } = require(path.join(outDir, 'connection', 'workspaceConnectionStore'));
 const { createSchemaInspector } = require(path.join(outDir, 'schema', 'inspector'));
@@ -46,6 +47,7 @@ async function main() {
   verifySqlParser();
   verifyCurrentStatementResultSql();
   verifySqlVariables();
+  verifyMysqlCompatibleColumnSources();
   verifyDangerousSqlDetection();
   verifyProductText();
   verifyCompletionDefaults();
@@ -276,6 +278,58 @@ function verifySqlParser() {
   const second = findStatementAtOffset(sql, secondOffset);
   assert.strictEqual(sql.slice(second.start, second.end).includes('SELECT 2'), true);
 
+  const boundarySql = [
+    'SELECT 1;',
+    '',
+    'SELECT 2;',
+  ].join('\n');
+  const firstSemicolon = boundarySql.indexOf(';');
+  const blankLine = boundarySql.indexOf('\n\n') + 1;
+  const nextStatementStart = boundarySql.indexOf('SELECT 2');
+  assert.strictEqual(getStatementText(boundarySql, firstSemicolon), 'SELECT 1');
+  assert.strictEqual(getStatementText(boundarySql, firstSemicolon + 1), 'SELECT 1');
+  assert.strictEqual(getStatementText(boundarySql, blankLine), 'SELECT 1');
+  assert.strictEqual(getStatementText(boundarySql, nextStatementStart), 'SELECT 2');
+  assert.strictEqual(getStatementText(boundarySql, boundarySql.length), 'SELECT 2');
+
+  const leadingCommentSql = [
+    'SELECT 1;',
+    '',
+    '-- next statement',
+    'SELECT 2;',
+  ].join('\n');
+  assert.strictEqual(
+    getStatementText(leadingCommentSql, leadingCommentSql.indexOf('-- next statement')).includes('SELECT 2'),
+    true,
+  );
+  assert.strictEqual(getStatementText(['', '', boundarySql].join('\n'), 0), 'SELECT 1');
+
+  const boundaryDocument = createTextDocument(boundarySql);
+  const blankPosition = boundaryDocument.positionAt(blankLine);
+  const blankSelection = new vscodeMock.Range(blankPosition, blankPosition);
+  blankSelection.active = blankPosition;
+  assert.strictEqual(
+    extractSelectedOrCurrentStatement({
+      document: boundaryDocument,
+      selection: blankSelection,
+    }).sql,
+    'SELECT 1',
+  );
+
+  const leadingCommentDocument = createTextDocument(leadingCommentSql);
+  const commentPosition = leadingCommentDocument.positionAt(
+    leadingCommentSql.indexOf('-- next statement'),
+  );
+  const commentSelection = new vscodeMock.Range(commentPosition, commentPosition);
+  commentSelection.active = commentPosition;
+  assert.strictEqual(
+    extractSelectedOrCurrentStatement({
+      document: leadingCommentDocument,
+      selection: commentSelection,
+    }).sql,
+    'SELECT 2',
+  );
+
   const commentedSql = [
     '-- 2026-07-13 request log',
     '-- SELECT * FROM previous_query;',
@@ -296,6 +350,11 @@ function verifySqlParser() {
   assert.strictEqual(document.getText(extracted.range).startsWith('SELECT'), true);
 }
 
+function getStatementText(sql, offset) {
+  const range = findStatementAtOffset(sql, offset);
+  return sql.slice(range.start, range.end).trim();
+}
+
 function verifySqlVariables() {
   const sql = [
     "SELECT :name, $age, ':ignored', col::int",
@@ -314,6 +373,53 @@ function verifySqlVariables() {
   assert.ok(postgres.sql.includes('SELECT $1, $2'));
   assert.ok(postgres.sql.includes('status = $3'));
   assert.deepStrictEqual(postgres.params, ['Ada', 37, 'active']);
+}
+
+function verifyMysqlCompatibleColumnSources() {
+  const sql = [
+    'SELECT account.id, profile.document_type, profile.document_number, verification.document_type',
+    'FROM accounts account',
+    'INNER JOIN verifications verification ON verification.account_id = account.id',
+    'INNER JOIN verification_profiles profile ON profile.document_number = verification.document_number',
+  ].join('\n');
+  const fields = [
+    { name: 'id' },
+    { name: 'document_type' },
+    { name: 'document_number' },
+    { name: 'document_type' },
+  ];
+
+  assert.deepStrictEqual(resolveMysqlColumnSources(sql, fields, 'example_app'), [
+    { schema: 'example_app', table: 'accounts', column: 'id' },
+    { schema: 'example_app', table: 'verification_profiles', column: 'document_type' },
+    { schema: 'example_app', table: 'verification_profiles', column: 'document_number' },
+    { schema: 'example_app', table: 'verifications', column: 'document_type' },
+  ]);
+
+  assert.deepStrictEqual(
+    resolveMysqlColumnSources(
+      'SELECT * FROM accounts account',
+      [{ name: 'id' }, { name: 'access_level' }],
+      'example_app',
+    ),
+    [
+      { schema: 'example_app', table: 'accounts', column: 'id' },
+      { schema: 'example_app', table: 'accounts', column: 'access_level' },
+    ],
+  );
+
+  assert.deepStrictEqual(
+    resolveMysqlColumnSources(
+      [
+        'SELECT DISTINCT account.`status`',
+        'FROM accounts account',
+        'LIMIT 100',
+      ].join('\n'),
+      [{ name: 'status' }],
+      'example_app',
+    ),
+    [{ schema: 'example_app', table: 'accounts', column: 'status' }],
+  );
 }
 
 function verifyDangerousSqlDetection() {
@@ -487,7 +593,7 @@ function verifyResultExportSerializers() {
   const display = __resultViewPanelTestHooks.toDisplayResult({
     sql: 'SELECT * FROM items',
     columns: [
-      { name: 'id', type: 'integer' },
+      { name: 'id', type: 'integer', comment: 'Item identifier' },
       { name: 'note', type: 'text' },
       { name: 'enabled', type: 'boolean' },
       { name: 'payload', type: 'blob' },
@@ -518,6 +624,7 @@ function verifyResultExportSerializers() {
 
   const csv = __resultViewPanelTestHooks.toCsv(display);
   assert.ok(csv.startsWith('id,note,enabled,payload\n'));
+  assert.strictEqual(display.columns[0].comment, 'Item identifier');
   assert.ok(csv.includes("1,\"'=SUM(1,1)\",true,<BLOB 3 bytes>"));
   assert.ok(csv.includes('"line one\n""quoted"", line two"'));
   assert.ok(csv.includes("'-not-a-formula"));
@@ -575,50 +682,154 @@ async function verifyDriverPageConnectionLifecycle() {
   const pgModule = require('pg');
   const originalCreateConnection = mysqlModule.createConnection;
   const originalClient = pgModule.Client;
-  let mysqlEnded = false;
-  let pgEnded = false;
+  let mysqlEndCount = 0;
+  let pgEndCount = 0;
+  let failMysqlComments = false;
+  let failPostgresqlComments = false;
+  const mysqlCommentQueries = [];
+  const metadataWarnings = [];
 
   try {
-    mysqlModule.createConnection = async () => ({
-      async query(query) {
-        await Promise.resolve();
-        if (mysqlEnded) {
-          throw new Error('mysql query ran after end');
-        }
+    mysqlModule.createConnection = async () => {
+      let ended = false;
+      return {
+        async query(query) {
+          await Promise.resolve();
+          if (ended) {
+            throw new Error('mysql query ran after end');
+          }
 
-        return [
-          [{ id: 2, name: 'Grace', meta: { ok: true } }],
-          [{ name: 'id', type: 3 }, { name: 'name', type: 253 }, { name: 'meta', type: 245 }],
-        ];
-      },
-      async end() {
-        mysqlEnded = true;
-      },
-    });
+          const sql = String(query?.sql ?? query);
+          if (sql.includes('FROM information_schema.columns')) {
+            mysqlCommentQueries.push(sql);
+            if (failMysqlComments) {
+              throw new Error('mysql comments unavailable');
+            }
+            return [[
+              {
+                source_schema: 'app',
+                source_table: 'users',
+                source_column: 'id',
+                comment: 'User identifier',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'users',
+                source_column: 'name',
+                comment: 'Display name',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'users',
+                source_column: 'meta',
+                comment: '',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'accounts',
+                source_column: 'id',
+                comment: 'Primary key',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'verification_profiles',
+                source_column: 'document_type',
+                comment: 'Profile document type',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'verification_profiles',
+                source_column: 'document_number',
+                comment: 'Document number',
+              },
+              {
+                source_schema: 'app',
+                source_table: 'verifications',
+                source_column: 'document_type',
+                comment: 'Certification document type',
+              },
+            ]];
+          }
+
+          if (sql.includes('FROM accounts account')) {
+            return [
+              [{ id: 'account-1', document_type: 'PASSPORT', document_number: 'masked' }],
+              [
+                { name: 'id', type: 253, schema: '', orgTable: '', orgName: '' },
+                { name: 'document_type', type: 253, schema: '', orgTable: '', orgName: '' },
+                { name: 'document_number', type: 253, schema: '', orgTable: '', orgName: '' },
+                { name: 'document_type', type: 253, schema: '', orgTable: '', orgName: '' },
+              ],
+            ];
+          }
+
+          return [
+            [{ id: 2, name: 'Grace', meta: { ok: true }, computed: 3 }],
+            [
+              { name: 'id', type: 3, schema: '', orgTable: 'users', orgName: 'id' },
+              { name: 'name', type: 253, schema: '', orgTable: 'users', orgName: 'name' },
+              { name: 'meta', type: 245, schema: '', orgTable: 'users', orgName: 'meta' },
+              { name: 'computed', type: 3, schema: '', orgTable: '', orgName: '' },
+            ],
+          ];
+        },
+        async end() {
+          ended = true;
+          mysqlEndCount += 1;
+        },
+      };
+    };
 
     pgModule.Client = class FakePageClient {
+      constructor() {
+        this.ended = false;
+      }
+
       async connect() {}
 
       async query(sql) {
         await Promise.resolve();
-        if (pgEnded) {
+        if (this.ended) {
           throw new Error('postgres query ran after end');
         }
 
+        if (String(sql).includes('FROM pg_description description')) {
+          if (failPostgresqlComments) {
+            throw new Error('postgres comments unavailable');
+          }
+          return {
+            rows: [
+              { table_id: '42', column_id: 1, comment: 'User identifier' },
+              { table_id: 42, column_id: 2, comment: 'Display name' },
+              { table_id: 42, column_id: 3, comment: null },
+            ],
+          };
+        }
+
         return {
-          rows: [{ id: 2, name: 'Grace', meta: { ok: true } }],
-          fields: [{ name: 'id', dataTypeID: 23 }, { name: 'name', dataTypeID: 25 }, { name: 'meta', dataTypeID: 3802 }],
+          rows: [{ id: 2, name: 'Grace', meta: { ok: true }, computed: 3 }],
+          fields: [
+            { name: 'id', dataTypeID: 23, tableID: 42, columnID: 1 },
+            { name: 'name', dataTypeID: 25, tableID: 42, columnID: 2 },
+            { name: 'meta', dataTypeID: 3802, tableID: 42, columnID: 3 },
+            { name: 'computed', dataTypeID: 23, tableID: 0, columnID: 0 },
+          ],
           rowCount: 1,
         };
       }
 
       async end() {
-        pgEnded = true;
+        this.ended = true;
+        pgEndCount += 1;
       }
     };
 
-    const runner = createQueryRunner();
-    const mysqlPage = await runner.fetchPage({
+    const runner = createQueryRunner({
+      reportMetadataWarning(message) {
+        metadataWarnings.push(message);
+      },
+    });
+    const mysqlConnection = {
       id: 'mysql-page',
       name: 'MySQL Page',
       type: 'mysql',
@@ -626,18 +837,54 @@ async function verifyDriverPageConnectionLifecycle() {
       host: '127.0.0.1',
       database: 'app',
       username: 'root',
-    }, {
+    };
+    const pageRequest = {
       sql: 'SELECT * FROM users',
       page: 2,
       pageSize: 10,
       totalRows: 25,
-    });
+    };
+    const mysqlPage = await runner.fetchPage(mysqlConnection, pageRequest);
     assert.strictEqual(mysqlPage.error, undefined);
-    assert.deepStrictEqual(mysqlPage.rows[0], [2, 'Grace', '{"ok":true}']);
+    assert.deepStrictEqual(mysqlPage.rows[0], [2, 'Grace', '{"ok":true}', 3]);
     assert.strictEqual(mysqlPage.columns[2].type, 'json');
-    assert.strictEqual(mysqlEnded, true);
+    assert.strictEqual(mysqlPage.columns[0].comment, 'User identifier');
+    assert.strictEqual(mysqlPage.columns[1].comment, 'Display name');
+    assert.strictEqual(mysqlPage.columns[2].comment, undefined);
+    assert.strictEqual(mysqlPage.columns[3].comment, undefined);
+    assert.ok(mysqlCommentQueries[0].includes('table_schema AS source_schema'));
+    assert.ok(mysqlCommentQueries[0].includes('column_comment AS comment'));
+    assert.ok(mysqlCommentQueries[0].includes('table_schema = ? AND table_name = ? AND column_name = ?'));
+    assert.ok(!mysqlCommentQueries[0].includes('(table_schema, table_name, column_name) IN'));
+    assert.strictEqual(mysqlEndCount, 1);
+    const [mysqlDirect] = await runner.execute(
+      mysqlConnection,
+      'SELECT id, name, meta FROM users LIMIT 1',
+    );
+    assert.strictEqual(mysqlDirect.error, undefined);
+    assert.strictEqual(mysqlDirect.columns[0].comment, 'User identifier');
+    assert.strictEqual(mysqlEndCount, 2);
 
-    const pgPage = await runner.fetchPage({
+    const [mysqlCompatibleJoin] = await runner.execute(mysqlConnection, [
+      'SELECT account.id, profile.document_type, profile.document_number, verification.document_type',
+      'FROM accounts account',
+      'INNER JOIN verifications verification ON verification.account_id = account.id',
+      'INNER JOIN verification_profiles profile ON profile.document_number = verification.document_number',
+      'LIMIT 1',
+    ].join('\n'));
+    assert.strictEqual(mysqlCompatibleJoin.error, undefined);
+    assert.deepStrictEqual(
+      mysqlCompatibleJoin.columns.map((column) => column.comment),
+      [
+        'Primary key',
+        'Profile document type',
+        'Document number',
+        'Certification document type',
+      ],
+    );
+    assert.strictEqual(mysqlEndCount, 3);
+
+    const postgresqlConnection = {
       id: 'pg-page',
       name: 'PostgreSQL Page',
       type: 'postgresql',
@@ -645,16 +892,38 @@ async function verifyDriverPageConnectionLifecycle() {
       host: '127.0.0.1',
       database: 'app',
       username: 'postgres',
-    }, {
-      sql: 'SELECT * FROM users',
-      page: 2,
-      pageSize: 10,
-      totalRows: 25,
-    });
+    };
+    const pgPage = await runner.fetchPage(postgresqlConnection, pageRequest);
     assert.strictEqual(pgPage.error, undefined);
-    assert.deepStrictEqual(pgPage.rows[0], [2, 'Grace', '{"ok":true}']);
+    assert.deepStrictEqual(pgPage.rows[0], [2, 'Grace', '{"ok":true}', 3]);
     assert.strictEqual(pgPage.columns[2].type, 'jsonb');
-    assert.strictEqual(pgEnded, true);
+    assert.strictEqual(pgPage.columns[0].comment, 'User identifier');
+    assert.strictEqual(pgPage.columns[1].comment, 'Display name');
+    assert.strictEqual(pgPage.columns[2].comment, undefined);
+    assert.strictEqual(pgPage.columns[3].comment, undefined);
+    assert.strictEqual(pgEndCount, 1);
+    const [postgresqlDirect] = await runner.execute(
+      postgresqlConnection,
+      'SELECT id, name, meta FROM users LIMIT 1',
+    );
+    assert.strictEqual(postgresqlDirect.error, undefined);
+    assert.strictEqual(postgresqlDirect.columns[0].comment, 'User identifier');
+    assert.strictEqual(pgEndCount, 2);
+
+    failMysqlComments = true;
+    const mysqlFallback = await runner.fetchPage(mysqlConnection, pageRequest);
+    assert.strictEqual(mysqlFallback.error, undefined);
+    assert.deepStrictEqual(mysqlFallback.rows[0], [2, 'Grace', '{"ok":true}', 3]);
+    assert.ok(mysqlFallback.columns.every((column) => column.comment === undefined));
+    assert.ok(metadataWarnings.some((message) => message.includes('mysql comments unavailable')));
+    assert.strictEqual(mysqlEndCount, 4);
+
+    failPostgresqlComments = true;
+    const postgresqlFallback = await runner.fetchPage(postgresqlConnection, pageRequest);
+    assert.strictEqual(postgresqlFallback.error, undefined);
+    assert.deepStrictEqual(postgresqlFallback.rows[0], [2, 'Grace', '{"ok":true}', 3]);
+    assert.ok(postgresqlFallback.columns.every((column) => column.comment === undefined));
+    assert.strictEqual(pgEndCount, 3);
   } finally {
     mysqlModule.createConnection = originalCreateConnection;
     pgModule.Client = originalClient;
@@ -1155,6 +1424,8 @@ function verifyResultWebviewScript() {
   assert.ok(!context.exports.__script.includes('modal-revert'));
   assert.ok(context.exports.__script.includes('result.sqlHtml'));
   assert.ok(context.exports.__script.includes('sql-preview'));
+  assert.ok(context.exports.__script.includes('renderColumnHeader'));
+  assert.ok(context.exports.__script.includes('column-comment'));
 }
 
 function verifyCurrentStatementResultSql() {
@@ -1259,6 +1530,9 @@ function verifyResultWebviewBehavior() {
 
   dom.click({ action: 'table', index: '0' });
   const resultBody = dom.query('[data-body="0"]').innerHTML;
+  assert.ok(resultBody.includes('<span class="column-name">id</span>'));
+  assert.ok(resultBody.includes('<span class="column-comment">Primary identifier &lt;internal&gt;</span>'));
+  assert.ok(resultBody.includes('title="id&#10;Primary identifier &lt;internal&gt;"'));
   assert.strictEqual((resultBody.match(/data-action="view-cell"/gu) ?? []).length, 1);
 
   dom.click({ action: 'view-cell', index: '0', row: '0', column: '1' });
@@ -1294,7 +1568,7 @@ function createWebviewPayload() {
         sql: 'SELECT * FROM items',
         sqlHtml: '<span class="sql-keyword">SELECT</span> * <span class="sql-keyword">FROM</span> items',
         columns: [
-          { name: 'id', type: 'integer' },
+          { name: 'id', type: 'integer', comment: 'Primary identifier <internal>' },
           { name: 'meta', type: 'json' },
           { name: 'json_like_text', type: 'text' },
         ],

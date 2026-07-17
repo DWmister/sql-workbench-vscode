@@ -2,6 +2,16 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.2.6 - 2026-07-16
+
+### Added
+
+- SQL result headers now show source-column comments when their source can be reliably resolved.
+
+### Improved
+
+- Running the current SQL statement with the cursor on a semicolon or in the following whitespace now executes the preceding statement until the next statement or its leading comment begins.
+
 ## 0.2.4 - 2026-07-14
 
 ### Added
