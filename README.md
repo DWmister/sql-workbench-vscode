@@ -6,7 +6,7 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.6-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.7-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -144,12 +144,12 @@ npm run check
 # Build the extension output used by VS Code.
 npm run compile
 
-# Run v0.2 core workflow checks against compiled output.
+# Run the cumulative workflow checks for the current and earlier release lines.
 # Covers SQL parsing/ranges, variables, dangerous SQL detection, workspace
 # connections/SecretStorage, result export serialization, DDL Hover, CodeLens, SQL file
 # binding recovery, MySQL/PostgreSQL pagination paths, SQLite schema metadata,
-# read-only JSON cell viewing, and webview behavior/syntax.
-npm run verify:v0.2
+# read-only JSON cell viewing, table-property field sorting, and webview behavior/syntax.
+npm run verify
 
 # Regenerate README screenshots after UI changes.
 npm run screenshots
@@ -193,6 +193,7 @@ Result grids and table properties are read-only in every version. The extension 
 - `0.2.x`: Extension-level configuration for custom execution shortcuts.
 - `0.2.x`: Better packaging through bundling to reduce VSIX size.
 - `0.2.x`: Richer connection editing and import/export.
+- `0.2.7`: Sortable fields in read-only table properties.
 - `0.3.x`: Query history, result workflow refinements, and multi-table wildcard column comments.
 - `1.0.0`: Complete planned feature set.
 

@@ -1,0 +1,33 @@
+{
+  "id": "table-column-sorting",
+  "name": "table-column-sorting",
+  "title": "0.2.7 表结构字段排序",
+  "description": "在只读表结构 Columns 页签提供字段排序，默认保留数据库定义顺序。",
+  "status": "in_progress",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P1",
+  "creator": "zsl",
+  "assignee": "zsl",
+  "createdAt": "2026-07-28",
+  "completedAt": null,
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [],
+  "parent": null,
+  "relatedFiles": [
+    "src/schema/tableDetailsPanel.ts",
+    "scripts/verify-workflows.js",
+    "README.md",
+    "README_CN.md",
+    "database-client-roadmap.html",
+    "database-client-competitive-analysis.md"
+  ],
+  "notes": "",
+  "meta": {}
+}

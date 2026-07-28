@@ -879,11 +879,12 @@
 
     <section class="hero">
       <div class="brief">
-        <div class="eyebrow">实施校准 · 更新于 2026-07-10</div>
-        <h1>v0.1 建立查询闭环，v0.2 把高频效率能力补齐。</h1>
+        <div class="eyebrow">实施校准 · 更新于 2026-07-28</div>
+        <h1>v0.1 建立查询闭环，v0.2 继续补齐高频效率能力。</h1>
         <p class="hero-copy">
           这份路线图已经按当前代码和发布记录重新校准。连接、SQL、只读结果是 v0.1 基线；
-          v0.2 已交付 CSV / JSON / XLSX、变量、Workspace 连接、完整表 DDL 和文件绑定恢复，并固化只读安全边界。
+          v0.2 已交付 CSV / JSON / XLSX、变量、Workspace 连接、完整表 DDL 和文件绑定恢复；
+          v0.2.x 继续通过表结构字段排序完善查找效率，并固化只读安全边界。
         </p>
         <div class="north-star">
           <div class="metric">
@@ -998,7 +999,7 @@
 
         <article class="phase" data-phase="v0.2">
           <div class="phase-head">
-            <div class="phase-kicker"><span>v0.2</span><span>已交付 · 超额</span></div>
+            <div class="phase-kicker"><span>v0.2.x</span><span>当前收尾 · 超额</span></div>
             <h3>免费化高频 Premium</h3>
           </div>
           <div class="phase-body">
@@ -1017,6 +1018,7 @@
               <li>轻量 DDL Hover、CodeLens Run、危险 SQL 确认</li>
               <li>结果字段注释与当前语句执行优化</li>
               <li>Columns / DDL 表属性，完整 DDL 着色、复制、刷新、重试</li>
+              <li>表结构字段名三态排序（v0.2.7）</li>
               <li>每文件连接绑定，移动或重命名后通过指纹恢复</li>
               <li>结果和表属性默认在当前编辑栏打开</li>
             </ul>
@@ -1272,7 +1274,7 @@
     <section class="section">
       <div class="section-title">
         <h2>版本落地复盘</h2>
-        <p>0.1 和 0.2 已按实际代码归档；未完成项进入明确版本，不再写成已经具备。</p>
+        <p>0.1 和 v0.2 基线已按实际代码归档；v0.2.x 持续收尾，未完成项进入明确版本。</p>
       </div>
       <div class="milestones">
         <div class="week">
@@ -1296,9 +1298,9 @@
           <p>变量、CodeLens、每文件绑定、指纹恢复、危险 SQL 确认。</p>
         </div>
         <div class="week">
-          <strong>v0.2 · 超出计划</strong>
+          <strong>v0.2.x · 当前收尾</strong>
           <h4>完整表 DDL</h4>
-          <p>Columns / DDL、三库原生结构、语法着色、复制、刷新和重试。</p>
+          <p>Columns / DDL、三库原生结构、语法着色、复制、刷新、重试和 v0.2.7 字段排序。</p>
         </div>
         <div class="week">
           <strong>v0.3.x · 下一步</strong>

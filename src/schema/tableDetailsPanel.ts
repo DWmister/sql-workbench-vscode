@@ -406,6 +406,7 @@ function renderTableDetailsHtml(
     .tab.active { color: var(--vscode-foreground); }
     .tab.active::after { background: var(--accent); }
     .tab:focus-visible,
+    .sort-button:focus-visible,
     .action:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
     .panel[hidden] { display: none; }
     .table-wrap {
@@ -432,6 +433,24 @@ function renderTableDetailsHtml(
       z-index: 1;
       background: var(--vscode-editorGroupHeader-tabsBackground);
       font-weight: 600;
+    }
+    .sort-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 0;
+      border: 0;
+      color: inherit;
+      background: transparent;
+      cursor: pointer;
+      font-weight: inherit;
+      text-align: left;
+    }
+    .sort-indicator {
+      color: var(--muted);
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 0.9em;
     }
     .col-name { width: 22%; }
     .col-type { width: 18%; }
@@ -543,7 +562,7 @@ function renderTableDetailsHtml(
 function getClientScript(): string {
   return `
 const vscode = acquireVsCodeApi();
-const state = { activeTab: 'columns', ddlStatus: 'idle' };
+const state = { activeTab: 'columns', ddlStatus: 'idle', nameSort: 'original' };
 
 document.addEventListener('click', (event) => {
   const tab = event.target.closest('[data-tab]');
@@ -554,6 +573,10 @@ document.addEventListener('click', (event) => {
 
   const action = event.target.closest('[data-action]');
   if (!action) return;
+  if (action.dataset.action === 'sort-name') {
+    sortColumnsByName();
+    return;
+  }
   if (action.dataset.action === 'copy') vscode.postMessage({ type: 'copyDdl' });
   if (action.dataset.action === 'refresh') requestDdl(true);
   if (action.dataset.action === 'retry') requestDdl(true);
@@ -577,6 +600,45 @@ function selectTab(tabName) {
   document.getElementById('columns-panel').hidden = tabName !== 'columns';
   document.getElementById('ddl-panel').hidden = tabName !== 'ddl';
   if (tabName === 'ddl' && state.ddlStatus === 'idle') requestDdl(false);
+}
+
+function sortColumnsByName() {
+  const body = document.getElementById('columns-body');
+  if (!body) return;
+
+  state.nameSort = state.nameSort === 'original'
+    ? 'ascending'
+    : state.nameSort === 'ascending'
+      ? 'descending'
+      : 'original';
+
+  const rows = Array.from(body.children);
+  rows.sort((left, right) => {
+    const originalDifference = Number(left.dataset.originalIndex) - Number(right.dataset.originalIndex);
+    if (state.nameSort === 'original') return originalDifference;
+
+    const leftName = String(left.dataset.columnName || '').toLocaleLowerCase();
+    const rightName = String(right.dataset.columnName || '').toLocaleLowerCase();
+    const nameDifference = leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
+    if (nameDifference === 0) return originalDifference;
+    return state.nameSort === 'ascending' ? nameDifference : -nameDifference;
+  });
+  body.replaceChildren(...rows);
+  updateNameSortUi();
+}
+
+function updateNameSortUi() {
+  const header = document.getElementById('name-sort-header');
+  const action = document.querySelector('[data-action="sort-name"]');
+  const indicator = document.getElementById('name-sort-indicator');
+  if (!header || !action || !indicator) return;
+
+  const order = state.nameSort === 'original' ? 'database order' : state.nameSort;
+  const label = 'Sort fields by name; current order: ' + order;
+  header.setAttribute('aria-sort', state.nameSort === 'original' ? 'none' : state.nameSort);
+  action.setAttribute('aria-label', label);
+  action.setAttribute('title', label);
+  indicator.textContent = state.nameSort === 'ascending' ? '↑' : state.nameSort === 'descending' ? '↓' : '↕';
 }
 
 function requestDdl(force) {
@@ -645,7 +707,7 @@ function renderColumns(columns: ColumnInfo[]): string {
     <table>
       <thead>
         <tr>
-          <th class="col-name">Name</th>
+          <th id="name-sort-header" class="col-name" aria-sort="none"><button class="sort-button" type="button" data-action="sort-name" aria-label="Sort fields by name; current order: database order" title="Sort fields by name; current order: database order"><span>Name</span><span id="name-sort-indicator" class="sort-indicator" aria-hidden="true">↕</span></button></th>
           <th class="col-type">Type</th>
           <th class="col-length">Length</th>
           <th class="col-comment">Comment</th>
@@ -654,19 +716,19 @@ function renderColumns(columns: ColumnInfo[]): string {
           <th class="col-default">Default</th>
         </tr>
       </thead>
-      <tbody>
-        ${columns.map(renderColumn).join('')}
+      <tbody id="columns-body">
+        ${columns.map((column, index) => renderColumn(column, index)).join('')}
       </tbody>
     </table>
   </div>`;
 }
 
-function renderColumn(column: ColumnInfo): string {
+function renderColumn(column: ColumnInfo, originalIndex: number): string {
   const name = column.primaryKey
     ? `<span class="key">PK</span> ${escapeHtml(column.name)}`
     : escapeHtml(column.name);
 
-  return `<tr>
+  return `<tr data-column-name="${escapeAttribute(column.name)}" data-original-index="${originalIndex}">
     <td class="col-name" title="${escapeAttribute(column.name)}">${name}</td>
     <td class="col-type" title="${escapeAttribute(column.type)}">${escapeHtml(column.type || '-')}</td>
     <td class="col-length" title="${escapeAttribute(column.length ?? '')}">${escapeHtml(column.length ?? '')}</td>

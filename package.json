@@ -2,7 +2,7 @@
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
   "description": "A VS Code database workbench with connection management, schema browsing, SQL execution, and smart completions.",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {
@@ -232,7 +232,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "check": "tsc -p ./ --noEmit",
-    "verify:v0.2": "npm run compile && node scripts/verify-v0.2.js",
+    "verify": "npm run compile && node scripts/verify-workflows.js",
     "screenshots": "node scripts/generate-readme-screenshots.js"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@ SQL Workbench 把数据库操作留在编辑器内：在普通 `.sql` 文件里�
 
 [English](README.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.6-2ea44f)
+![Version](https://img.shields.io/badge/version-0.2.7-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
@@ -144,12 +144,12 @@ npm run check
 # 构建 VS Code 运行所需的 out/ 产物。
 npm run compile
 
-# 运行 v0.2 核心工作流验证。
+# 运行覆盖当前及历史版本线的累计工作流验证。
 # 覆盖 SQL 解析/语句范围、变量、危险 SQL 检测、workspace 连接/SecretStorage、
 # 结果导出序列化、DDL Hover、CodeLens、SQL 文件绑定恢复、
-# MySQL/PostgreSQL 分页路径、SQLite 结构元数据、只读 JSON 单元格查看
-# 和 webview 行为/脚本语法。
-npm run verify:v0.2
+# MySQL/PostgreSQL 分页路径、SQLite 结构元数据、只读 JSON 单元格查看、
+# 表结构字段排序和 webview 行为/脚本语法。
+npm run verify
 
 # UI 调整后重新生成 README 截图。
 npm run screenshots
@@ -193,6 +193,7 @@ CHROME_PATH="/path/to/chrome" npm run screenshots
 - `0.2.x`：插件级自定义执行快捷键配置。
 - `0.2.x`：通过 bundling 优化 VSIX 体积。
 - `0.2.x`：更完整的连接编辑和导入/导出。
+- `0.2.7`：只读表结构字段排序。
 - `0.3.x`：查询历史、结果工作流优化和多表通配符字段注释。
 - `1.0.0`：完整计划功能集。
 

@@ -70,7 +70,7 @@ async function main() {
   verifyResultWebviewBehavior();
   verifyResultWebviewScript();
 
-  console.log('v0.2 verification ok');
+  console.log('workflow verification ok');
 }
 
 function verifyProductText() {
@@ -1314,6 +1314,12 @@ function verifyTableDetailsWebview() {
     group: 'Verify',
     path: '/tmp/webview.sqlite',
   }, '<unsafe-table>');
+  details.columns = [
+    { name: 'beta', type: 'TEXT', nullable: true, primaryKey: false, ordinal: 0 },
+    { name: 'Alpha', type: 'INTEGER', nullable: false, primaryKey: true, ordinal: 1 },
+    { name: 'alpha', type: 'JSON', nullable: true, primaryKey: false, ordinal: 2 },
+    { name: 'zeta', type: 'TEXT', nullable: true, primaryKey: false, ordinal: 3 },
+  ];
   const html = __tableDetailsPanelTestHooks.renderTableDetailsHtml(
     { cspSource: 'vscode-webview://verify' },
     details,
@@ -1323,6 +1329,10 @@ function verifyTableDetailsWebview() {
   assert.ok(html.includes("script-src 'nonce-"));
   assert.ok(html.includes('tab-icon-columns'));
   assert.ok(html.includes('tab-icon-ddl'));
+  assert.ok(html.includes('id="name-sort-header"'));
+  assert.ok(html.includes('aria-sort="none"'));
+  assert.ok(html.includes('data-action="sort-name"'));
+  assert.ok(html.includes('data-column-name="beta" data-original-index="0"'));
 
   const unsafeDdl = [
     'CREATE TABLE `<unsafe>` (',
@@ -1342,6 +1352,31 @@ function verifyTableDetailsWebview() {
   const harness = createTableDetailsDomHarness();
   vm.createContext(harness.context);
   vm.runInContext(__tableDetailsPanelTestHooks.getClientScript(), harness.context);
+
+  assert.deepStrictEqual(harness.columnNames(), ['beta', 'Alpha', 'alpha', 'zeta']);
+  harness.click(harness.elements.nameSortAction);
+  assert.deepStrictEqual(harness.columnNames(), ['Alpha', 'alpha', 'beta', 'zeta']);
+  assert.strictEqual(harness.elements.nameSortHeader.attributes['aria-sort'], 'ascending');
+  assert.strictEqual(harness.elements.nameSortIndicator.textContent, '↑');
+  assert.strictEqual(harness.messages.length, 0);
+
+  harness.click(harness.elements.nameSortAction);
+  assert.deepStrictEqual(harness.columnNames(), ['zeta', 'beta', 'Alpha', 'alpha']);
+  assert.strictEqual(harness.elements.nameSortHeader.attributes['aria-sort'], 'descending');
+  assert.strictEqual(harness.elements.nameSortIndicator.textContent, '↓');
+  assert.strictEqual(harness.messages.length, 0);
+
+  harness.click(harness.elements.nameSortAction);
+  assert.deepStrictEqual(harness.columnNames(), ['beta', 'Alpha', 'alpha', 'zeta']);
+  assert.strictEqual(harness.elements.nameSortHeader.attributes['aria-sort'], 'none');
+  assert.strictEqual(harness.elements.nameSortIndicator.textContent, '↕');
+  assert.strictEqual(harness.messages.length, 0);
+
+  const resetHarness = createTableDetailsDomHarness();
+  vm.createContext(resetHarness.context);
+  vm.runInContext(__tableDetailsPanelTestHooks.getClientScript(), resetHarness.context);
+  assert.deepStrictEqual(resetHarness.columnNames(), ['beta', 'Alpha', 'alpha', 'zeta']);
+  assert.strictEqual(resetHarness.elements.nameSortHeader.attributes['aria-sort'], 'none');
 
   harness.click(harness.elements.ddlTab);
   assertJsonEqual(harness.messages.shift(), { type: 'loadDdl', force: false });
@@ -1617,6 +1652,9 @@ function createTableDetailsDomHarness() {
       append(...children) {
         this.children.push(...children);
       },
+      replaceChildren(...children) {
+        this.children = children;
+      },
       closest(selector) {
         if (selector === '[data-tab]' && this.dataset.tab) return this;
         if (selector === '[data-action]' && this.dataset.action) return this;
@@ -1633,9 +1671,21 @@ function createTableDetailsDomHarness() {
     ddlState: createElement('ddl-state'),
     ddlCode: createElement('ddl-code'),
     ddlToolbar: createElement('ddl-toolbar'),
+    columnsBody: createElement('columns-body'),
+    nameSortHeader: createElement('name-sort-header'),
+    nameSortIndicator: createElement('name-sort-indicator'),
+    nameSortAction: createElement('name-sort-action', { action: 'sort-name' }),
     copyAction: createElement('copy-action', { action: 'copy' }),
     refreshAction: createElement('refresh-action', { action: 'refresh' }),
   };
+  elements.nameSortHeader.setAttribute('aria-sort', 'none');
+  elements.nameSortIndicator.textContent = '↕';
+  elements.columnsBody.children = [
+    createElement('column-beta', { columnName: 'beta', originalIndex: '0' }),
+    createElement('column-alpha-upper', { columnName: 'Alpha', originalIndex: '1' }),
+    createElement('column-alpha-lower', { columnName: 'alpha', originalIndex: '2' }),
+    createElement('column-zeta', { columnName: 'zeta', originalIndex: '3' }),
+  ];
   elements.ddlPanel.hidden = true;
   elements.ddlCode.hidden = true;
   elements.ddlToolbar.hidden = true;
@@ -1646,6 +1696,9 @@ function createTableDetailsDomHarness() {
     ['ddl-state', elements.ddlState],
     ['ddl-code', elements.ddlCode],
     ['ddl-toolbar', elements.ddlToolbar],
+    ['columns-body', elements.columnsBody],
+    ['name-sort-header', elements.nameSortHeader],
+    ['name-sort-indicator', elements.nameSortIndicator],
   ]);
   const document = {
     addEventListener(type, listener) {
@@ -1655,7 +1708,9 @@ function createTableDetailsDomHarness() {
       return selector === '[data-tab]' ? [elements.columnsTab, elements.ddlTab] : [];
     },
     querySelector(selector) {
-      return selector === '[data-action="copy"]' ? elements.copyAction : undefined;
+      if (selector === '[data-action="copy"]') return elements.copyAction;
+      if (selector === '[data-action="sort-name"]') return elements.nameSortAction;
+      return undefined;
     },
     getElementById(id) {
       return byId.get(id);
@@ -1694,6 +1749,9 @@ function createTableDetailsDomHarness() {
     },
     emitMessage(data) {
       listeners.message({ data });
+    },
+    columnNames() {
+      return elements.columnsBody.children.map((row) => row.dataset.columnName);
     },
   };
 }
