@@ -38,3 +38,36 @@
 ### Next Steps
 
 - None - task complete
+
+
+## Session 2: 完成 0.2.7 表结构字段排序
+
+**Date**: 2026-07-28
+**Task**: 完成 0.2.7 表结构字段排序
+**Branch**: `main`
+
+### Summary
+
+完成只读表结构 Columns 页字段名三态排序、累计回归验证入口整理、0.2.7 路线与 VSIX 发布校验。
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `10f2717` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
