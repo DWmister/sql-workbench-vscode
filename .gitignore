@@ -6,3 +6,6 @@ docs/*
 !docs/images/
 docs/images/*
 !docs/images/*.png
+!docs/blogs/
+docs/blogs/*
+!docs/blogs/*.md
