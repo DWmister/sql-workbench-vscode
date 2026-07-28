@@ -32,6 +32,20 @@ const screenshots = [
     height: 900,
     html: renderPage(renderCompletionView()),
   },
+  {
+    name: 'agent-chat',
+    title: 'Agent Chat and SQL Explain',
+    width: 1440,
+    height: 900,
+    html: renderPage(renderAgentChatView()),
+  },
+  {
+    name: 'ai-configuration',
+    title: 'OpenAI-compatible model configuration',
+    width: 1440,
+    height: 900,
+    html: renderPage(renderAiConfiguration()),
+  },
 ];
 const requestedNames = process.argv.slice(2);
 const selectedScreenshots = requestedNames.length === 0
@@ -377,6 +391,183 @@ function renderPage(content) {
     .suggest-row.active { background: #2f3b4c; }
     .type { color: #d8dee9; text-align: right; }
     .comment { color: #aab3bf; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .agent-layout {
+      display: grid;
+      grid-template-columns: 300px 410px minmax(0, 1fr);
+      height: 100%;
+    }
+    .agent-panel {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      background: #141a21;
+    }
+    .agent-panel-title {
+      display: flex;
+      justify-content: space-between;
+      padding: 16px 14px 10px;
+      color: #aab3bf;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .agent-header {
+      padding: 10px 14px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .agent-brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .agent-brand strong { font-size: 14px; }
+    .agent-status {
+      padding: 3px 9px;
+      border-radius: 999px;
+      color: #fff;
+      background: #287aa4;
+    }
+    .agent-toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 34px 34px;
+      gap: 6px;
+    }
+    .agent-select, .agent-icon-button {
+      height: 34px;
+      border: 1px solid #3b82a6;
+      color: var(--text);
+      background: #171d24;
+    }
+    .agent-select { padding: 0 10px; }
+    .agent-icon-button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+    .agent-connection {
+      margin-top: 9px;
+      color: var(--muted);
+    }
+    .agent-messages {
+      flex: 1;
+      min-height: 0;
+      padding: 12px 14px;
+      overflow: hidden;
+    }
+    .chat-message {
+      margin-bottom: 12px;
+      padding: 10px 11px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: #10151b;
+    }
+    .chat-message.user { border-color: #2f81b7; }
+    .chat-role {
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .chat-message p { margin: 0; line-height: 1.55; }
+    .agent-draft {
+      margin-top: 10px;
+      padding: 10px;
+      border-left: 3px solid var(--accent);
+      background: #222831;
+    }
+    .agent-draft-head {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .agent-draft pre {
+      margin: 0 0 9px;
+      color: #d7dee8;
+      font: 12px/1.55 "SFMono-Regular", Consolas, monospace;
+      white-space: pre-wrap;
+    }
+    .draft-actions { display: flex; gap: 7px; }
+    .draft-actions .btn { min-width: 64px; height: 29px; }
+    .agent-composer {
+      padding: 11px 14px 13px;
+      border-top: 1px solid var(--border);
+    }
+    .agent-composer textarea {
+      min-height: 74px;
+      padding: 9px;
+      border: 1px solid var(--border);
+      background: #11171e;
+    }
+    .composer-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .editor-codelens {
+      height: 22px;
+      margin-left: 54px;
+      color: #8f98a5;
+      font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .editor-codelens b { color: #6db8ed; font-weight: 500; }
+    .config-layout {
+      display: grid;
+      grid-template-columns: 300px minmax(0, 1fr);
+      height: 100%;
+    }
+    .config-main {
+      min-width: 0;
+      background: #11161d;
+    }
+    .config-form {
+      max-width: 820px;
+      padding: 34px 44px;
+    }
+    .config-form h1 { margin-bottom: 8px; }
+    .config-lead {
+      margin: 0 0 26px;
+      color: var(--muted);
+    }
+    .config-field { margin-bottom: 20px; }
+    .config-field label {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--text);
+      font-weight: 650;
+    }
+    .config-field input, .config-field textarea {
+      border-color: var(--border);
+      background: #1a212a;
+    }
+    .config-field textarea { min-height: 105px; }
+    .config-help {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .config-help strong { color: #d8dee9; }
+    .secret-badge {
+      margin-left: 7px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: #fff;
+      background: #287aa4;
+      font-size: 10px;
+      font-weight: 500;
+    }
   </style>
 </head>
 <body>
@@ -396,14 +587,14 @@ function renderConnectionForm() {
           <h1>连接至服务</h1>
         </div>
         <div class="grid">
-          <label class="req">名称</label><input value="qa-bi-dwd">
-          <label class="req">分组</label><input value="sr">
+          <label class="req">名称</label><input value="local-mysql">
+          <label class="req">分组</label><input value="Development">
         </div>
         <div class="section">
           <h2>快捷连接</h2>
           <div class="grid">
             <label>连接字符串</label>
-            <textarea class="wide">mysql://root:password@127.0.0.1:3306/qa_bi_dwd?name=qa-bi-dwd&group=sr</textarea>
+            <textarea class="wide">mysql://developer:••••••••@127.0.0.1:3306/app_db?name=local-mysql&amp;group=Development</textarea>
             <div></div><div><span class="btn">解析</span></div>
           </div>
         </div>
@@ -416,9 +607,9 @@ function renderConnectionForm() {
           <div class="grid">
             <label class="req">主机名</label><input value="127.0.0.1">
             <label class="req">端口</label><input value="3306">
-            <label class="req">用户名</label><input value="root">
+            <label class="req">用户名</label><input value="developer">
             <label>密码</label><input value="••••••••">
-            <label class="req">数据库</label><input class="wide" value="qa_bi_dwd">
+            <label class="req">数据库</label><input class="wide" value="app_db">
           </div>
         </div>
         <div class="btns"><span class="btn">测试连接</span><span class="btn primary">保存</span><span class="btn">关闭</span></div>
@@ -429,27 +620,26 @@ function renderConnectionForm() {
 
 function renderSchemaView() {
   const ddl = [
-    '<span class="kw">CREATE TABLE</span> <span class="table-name">`biz_show`</span> (',
-    '  <span class="id">`id`</span> varchar(<span class="num">65533</span>) NOT NULL COMMENT <span class="table-name">\'主键id\'</span>,',
-    '  <span class="id">`std_show_id`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'标准演出id\'</span>,',
-    '  <span class="id">`supplier_id`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'节目供应商id\'</span>,',
-    '  <span class="id">`biz_code`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'业务编码(来源)\'</span>,',
-    '  <span class="id">`show_name`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'演出名称\'</span>,',
-    '  <span class="id">`is_show_sponsor`</span> tinyint(<span class="num">1</span>) DEFAULT NULL COMMENT <span class="table-name">\'冠名是否展示\'</span>,',
-    '  <span class="id">`poster_url`</span> varchar(<span class="num">65533</span>) DEFAULT NULL COMMENT <span class="table-name">\'海报图\'</span>,',
+    '<span class="kw">CREATE TABLE</span> <span class="table-name">`orders`</span> (',
+    '  <span class="id">`id`</span> bigint NOT NULL AUTO_INCREMENT COMMENT <span class="table-name">\'Order ID\'</span>,',
+    '  <span class="id">`customer_id`</span> bigint NOT NULL COMMENT <span class="table-name">\'Customer ID\'</span>,',
+    '  <span class="id">`status`</span> varchar(<span class="num">32</span>) NOT NULL COMMENT <span class="table-name">\'Order status\'</span>,',
+    '  <span class="id">`total_amount`</span> decimal(<span class="num">12</span>, <span class="num">2</span>) NOT NULL COMMENT <span class="table-name">\'Order total\'</span>,',
+    '  <span class="id">`placed_at`</span> datetime NOT NULL COMMENT <span class="table-name">\'Placed time\'</span>,',
+    '  <span class="id">`created_at`</span> datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,',
     '  <span class="kw">PRIMARY KEY</span> (<span class="id">`id`</span>),',
-    '  <span class="kw">KEY</span> <span class="id">`idx_biz_code`</span> (<span class="id">`biz_code`</span>)',
-    ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=<span class="table-name">\'演出业务表\'</span>;',
+    '  <span class="kw">KEY</span> <span class="id">`idx_orders_customer_placed`</span> (<span class="id">`customer_id`</span>, <span class="id">`placed_at`</span>)',
+    ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT=<span class="table-name">\'Customer orders\'</span>;',
   ];
 
   return `<div class="vscode">
     ${renderSidebar('schema')}
     <div class="content">
-      <div class="tabbar"><div class="tab">biz_show</div></div>
-      <div class="toolbar"><strong>qa_bi_dwd.biz_show</strong><span class="muted">45 columns</span><span class="badge">Read-only properties</span></div>
+      <div class="tabbar"><div class="tab">orders</div></div>
+      <div class="toolbar"><strong>app_db.orders</strong><span class="muted">7 columns</span><span class="badge">Read-only properties</span></div>
       <div class="grid" style="padding:12px 16px 8px;">
-        <label>Connection</label><strong>qa-bi-dwd</strong>
-        <label>Database</label><strong>qa_bi_dwd</strong>
+        <label>Connection</label><strong>local-mysql</strong>
+        <label>Database</label><strong>app_db</strong>
       </div>
       <div style="display:flex;align-items:center;border-bottom:1px solid var(--border);padding:0 16px;">
         <div class="tabs" style="height:40px;align-items:flex-end;"><span><b class="shot-tab-icon columns">▤</b> Columns</span><span class="active"><b class="shot-tab-icon ddl">{}</b> DDL</span></div>
@@ -464,13 +654,12 @@ function renderSchemaView() {
 
 function renderCompletionView() {
   const suggestions = [
-    ['◈', 'id', '主键id', 'varchar(65533)'],
-    ['◈', 'identity_required_type', '购买此演出身份证使用类型', 'int(11)'],
-    ['◈', 'invoice_type', '发票类型：1、电子票；2、纸质票', 'int(11)'],
-    ['◈', 'is_deleted', '是否删除', 'tinyint(1)'],
-    ['◈', 'is_free', '是否免费', 'tinyint(1)'],
-    ['◈', 'is_show_sponsor', '冠名是否展示', 'tinyint(1)'],
-    ['◈', 'show_name', '演出名称', 'varchar(65533)'],
+    ['◈', 'id', 'Order ID', 'bigint'],
+    ['◈', 'customer_id', 'Customer ID', 'bigint'],
+    ['◈', 'status', 'Order status', 'varchar(32)'],
+    ['◈', 'total_amount', 'Order total', 'decimal(12,2)'],
+    ['◈', 'placed_at', 'Placed time', 'datetime'],
+    ['◈', 'created_at', 'Created time', 'datetime'],
   ];
 
   return `<div class="vscode">
@@ -478,9 +667,9 @@ function renderCompletionView() {
     <div class="content">
       <div class="tabbar"><div class="tab">s.sql</div></div>
       <div class="editor">
-        ${codeLine(1, '<span class="kw">select</span> <span class="id">bs</span>.i <span class="kw">from</span> <span class="table-name">biz_show</span> bs')}
+        ${codeLine(1, '<span class="kw">select</span> <span class="id">o</span>.i <span class="kw">from</span> <span class="table-name">orders</span> o')}
         ${codeLine(2, '<span class="kw">where</span>')}
-        ${codeLine(3, '  <span class="id">bs</span>.is_del')}
+        ${codeLine(3, '  <span class="id">o</span>.')}
         ${codeLine(4, '<span class="kw">limit</span> <span class="num">10</span>;')}
         <div class="suggest">
           ${suggestions.map((row, index) => `<div class="suggest-row ${index === 0 ? 'active' : ''}"><span>${row[0]}</span><strong>${escapeHtml(row[1])}</strong><span class="comment">${escapeHtml(row[2])}</span><span class="type">${escapeHtml(row[3])}</span></div>`).join('')}
@@ -490,17 +679,117 @@ function renderCompletionView() {
   </div>`;
 }
 
+function renderAgentChatView() {
+  const sqlLines = [
+    '<span class="kw">SELECT</span>',
+    '  <span class="id">c</span>.<span class="id">id</span> <span class="kw">AS</span> customer_id,',
+    '  <span class="id">c</span>.<span class="id">full_name</span>,',
+    '  COUNT(<span class="id">o</span>.<span class="id">id</span>) <span class="kw">AS</span> order_count,',
+    '  COALESCE(SUM(<span class="id">o</span>.<span class="id">total_amount</span>), <span class="num">0</span>) <span class="kw">AS</span> total_amount',
+    '<span class="kw">FROM</span> <span class="table-name">customers</span> <span class="id">c</span>',
+    '<span class="kw">LEFT JOIN</span> <span class="table-name">orders</span> <span class="id">o</span> <span class="kw">ON</span> <span class="id">o</span>.<span class="id">customer_id</span> = <span class="id">c</span>.<span class="id">id</span>',
+    '  <span class="kw">AND</span> <span class="id">o</span>.<span class="id">placed_at</span> &gt;= <span class="table-name">:start_time</span>',
+    '  <span class="kw">AND</span> <span class="id">o</span>.<span class="id">placed_at</span> &lt; <span class="table-name">:end_time</span>',
+    '<span class="kw">GROUP BY</span> <span class="id">c</span>.<span class="id">id</span>, <span class="id">c</span>.<span class="id">full_name</span>;',
+  ];
+  const draftSql = `SELECT
+  c.id AS customer_id,
+  c.full_name,
+  COUNT(o.id) AS order_count,
+  COALESCE(SUM(o.total_amount), 0) AS total_amount
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+GROUP BY c.id, c.full_name;`;
+
+  return `<div class="agent-layout">
+    ${renderSidebar()}
+    <section class="agent-panel">
+      <div class="agent-panel-title"><span>Agent Chat</span><span>＋ ⚙</span></div>
+      <div class="agent-header">
+        <div class="agent-brand"><strong>Schema-aware Chat</strong><span class="agent-status">Ready</span></div>
+        <div class="agent-toolbar">
+          <div class="agent-select">Customer order summary⌄</div>
+          <div class="agent-icon-button">＋</div>
+          <div class="agent-icon-button">⚙</div>
+        </div>
+        <div class="agent-connection">local-mysql · app_db</div>
+      </div>
+      <div class="agent-messages">
+        <article class="chat-message user">
+          <div class="chat-role">You</div>
+          <p>Explain the current SQL and check whether its indexes are appropriate.</p>
+        </article>
+        <article class="chat-message">
+          <div class="chat-role">Agent</div>
+          <p>This query summarizes each customer's order count and total amount for a time range. The LEFT JOIN retains customers with no matching orders.</p>
+          <p style="margin-top:7px;color:var(--muted);">Index review: <code>orders(customer_id, placed_at)</code> supports the join and range filter. No SQL was executed.</p>
+        </article>
+        <section class="agent-draft">
+          <div class="agent-draft-head"><strong>Customer order summary</strong><span class="muted">review in editor</span></div>
+          <pre>${escapeHtml(draftSql)}</pre>
+          <div class="draft-actions"><span class="btn">Insert</span><span class="btn">Open</span></div>
+        </section>
+      </div>
+      <div class="agent-composer">
+        <textarea placeholder="Ask about the active database, generate SQL, or paste an error to fix…"></textarea>
+        <div class="composer-meta"><span>Enter to send · Shift+Enter for a new line</span><span class="btn primary" style="height:30px;min-width:58px;">Send</span></div>
+      </div>
+    </section>
+    <section class="content">
+      <div class="tabbar"><div class="tab">customer-orders.sql</div></div>
+      <div class="editor">
+        <div class="editor-codelens">Run Statement&nbsp; | &nbsp;<b>AI Explain</b></div>
+        ${sqlLines.map((line, index) => codeLine(index + 1, line)).join('')}
+      </div>
+    </section>
+  </div>`;
+}
+
+function renderAiConfiguration() {
+  const explainInstructions = 'Respond in Chinese, explain step by step, and focus on indexes and full-table scans.';
+  return `<div class="config-layout">
+    ${renderSidebar()}
+    <section class="config-main">
+      <div class="tabbar"><div class="tab">Configure Agent Chat</div></div>
+      <main class="config-form">
+        <h1>Configure Agent Chat</h1>
+        <p class="config-lead">Connect directly to your OpenAI-compatible API. SQL Workbench does not proxy or host the model service.</p>
+        <div class="config-field">
+          <label>API Base URL</label>
+          <input value="https://api.example.com/v1">
+          <p class="config-help"><span>Enter the provider's OpenAI-compatible base URL. Remote URLs must use HTTPS.</span></p>
+        </div>
+        <div class="config-field">
+          <label>Model ID</label>
+          <input value="example-model">
+          <p class="config-help"><span><strong>Use the exact model name accepted by the API, not the provider or product name.</strong> Copy the current ID from your provider's model list or API error.</span></p>
+        </div>
+        <div class="config-field">
+          <label>Explain Instructions</label>
+          <textarea>${escapeHtml(explainInstructions)}</textarea>
+          <p class="config-help"><span>Optional preferences for SQL Explain only. Fixed safety requirements and the no-execution boundary cannot be overridden.</span><span>${explainInstructions.length} / 4000</span></p>
+        </div>
+        <div class="config-field">
+          <label>API Key <span class="secret-badge">Saved in VS Code SecretStorage</span></label>
+          <input type="password" placeholder="Leave blank to keep the saved key">
+          <p class="config-help"><span>The existing key is never sent to this page. Leave blank to keep it, or enter a new key to replace it.</span></p>
+        </div>
+        <div class="draft-actions"><span class="btn primary">Save</span><span class="btn">Cancel</span></div>
+      </main>
+    </section>
+  </div>`;
+}
+
 function renderSidebar(active = '') {
   const tableClass = active === 'schema' ? 'tree-row indent-2 active' : 'tree-row indent-2';
   return `<aside class="sidebar">
     <div class="sidebar-title"><span>Database</span><span>＋ ⟳</span></div>
-    <div class="tree-row">▾ 📁 sr</div>
-    <div class="tree-row indent-1">▾ 🐬 qa_bi_dwd</div>
+    <div class="tree-row">▾ 📁 Development</div>
+    <div class="tree-row indent-1">▾ 🐬 local-mysql</div>
     <div class="tree-row indent-2">▾ Tables</div>
-    <div class="${tableClass}">▸ ▦ biz_show</div>
-    <div class="tree-row indent-2">▸ ▦ biz_user</div>
-    <div class="tree-row indent-2">▸ ▦ tm_order</div>
-    <div class="tree-row indent-2">▸ ▦ tc_order</div>
+    <div class="${tableClass}">▸ ▦ orders</div>
+    <div class="tree-row indent-2">▸ ▦ customers</div>
+    <div class="tree-row indent-2">▸ ▦ products</div>
   </aside>`;
 }
 

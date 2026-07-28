@@ -2,4 +2,7 @@ node_modules/
 out/
 .DS_Store
 *.vsix
-docs/
+docs/*
+!docs/images/
+docs/images/*
+!docs/images/*.png

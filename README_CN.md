@@ -6,13 +6,13 @@ SQL Workbench 把数据库操作留在编辑器内：在普通 `.sql` 文件里�
 
 [English](README.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.7-2ea44f)
+![Version](https://img.shields.io/badge/version-0.3.0-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
-![连接配置页](docs/images/connection-form.png)
+![Agent Chat 与 SQL 理解](docs/images/agent-chat.png)
 
 ## 为什么做 SQL Workbench？
 
@@ -32,6 +32,10 @@ SQL Workbench 把数据库操作留在编辑器内：在普通 `.sql` 文件里�
 
 ## 效果图
 
+### OpenAI-compatible 模型配置
+
+![OpenAI-compatible 模型配置](docs/images/ai-configuration.png)
+
 ### 只读表属性与 DDL
 
 ![只读表属性与 DDL](docs/images/schema-view.png)
@@ -39,6 +43,10 @@ SQL Workbench 把数据库操作留在编辑器内：在普通 `.sql` 文件里�
 ### 按别名收敛的 SQL 提示
 
 ![按别名收敛的 SQL 提示](docs/images/sql-completion.png)
+
+### 连接配置
+
+![连接配置页](docs/images/connection-form.png)
 
 ## 功能
 
@@ -59,6 +67,29 @@ SQL Workbench 把数据库操作留在编辑器内：在普通 `.sql` 文件里�
 - 查询结果 webview 支持带语法颜色的已执行 SQL、表格/JSON 模式、分页、CSV/JSON/XLSX 导出，以及只读 JSON/JSONB 单元格查看。
 - 只读结构树：连接 -> 表 -> 字段。
 - 单栏时，查询结果、只读表属性和连接表单在右侧打开；已有分栏时复用当前活动栏，不再创建更多分栏。表属性提供 Columns 与按需加载的 DDL 页签。
+
+## AI Native Preview（v0.3.0）
+
+v0.3.0 将 SQL Workbench 从传统数据库插件升级为面向开发者的 Schema-aware Agent：
+
+- 用户通过 BYOK 直接连接自己配置的 OpenAI-compatible API；SQL Workbench 不提供或代理托管模型服务。
+- Agent Chat 侧边栏中的每个会话只绑定一个活动数据库连接。
+- 可通过语句旁的 `AI Explain` CodeLens 或命令面板理解选中 SQL / 当前语句。
+- 可配置全局 Explain 附加说明，定制回答语言、格式和审查重点，但不能替换固定安全 Prompt。
+- 仅使用相关且已脱敏的 Schema 上下文生成、修复和优化 SQL。
+- 所有生成语句都只形成可审阅的 SQL 草稿，Agent Chat 不能执行任何 SQL。
+- 草稿必须插入或打开到 `.sql` 编辑器；如需执行，由用户使用现有 `Run Statement`。
+- 消息与 SQL 草稿按时间顺序展示，聊天区自动跟随最新回应。
+- 后续消息可以继续调整已生成 SQL；最近的宿主草稿会作为受上下文预算限制的参考数据提供给模型。
+
+SQL 理解不会执行语句。v0.3.0 不会把查询结果行或单元格值发送给模型；模型上下文仅包含 SQL、方言、最近的 SQL 草稿和相关 Schema 元数据。连接串、已保存的 API Key 与数据库密码会在模型请求和工作区持久化之前脱敏。本版本不包含查询结果分析。
+
+使用 AI 功能：
+
+1. 执行 `SQL Workbench: Configure AI Model`。
+2. 在独立配置页中输入 Base URL、API 接受的精确 Model ID、API Key 和可选的全局 Explain 附加说明；Model ID 必须是完整模型名而不是服务商品牌名，Key 仅保存到 VS Code SecretStorage。
+3. 点击语句 Run 旁的 `AI Explain`，或执行 `SQL Workbench: AI: Explain SQL` 理解选区/当前语句。
+4. 打开 `Agent Chat` 生成、修复或优化 SQL。草稿只提供 `Insert` 和 `Open`，执行必须回到 `.sql` 编辑器。
 
 ## 快速开始
 
@@ -129,10 +160,10 @@ sqlite:///Users/me/database.sqlite?name=local-sqlite&group=local
 
 ## 版本规则
 
-当前增强版版本线：`0.2.x`。
+当前发布版本线：`0.3.x`。
 
-- 增强版修复和小优化：更新 patch 版本，例如 `0.2.1`。
-- 完整版之前的较大功能更新：更新 minor 版本，例如 `0.3.0`。
+- 增强版修复和小优化：更新 patch 版本，例如 `0.3.1`。
+- 完整版之前的较大功能更新：更新 minor 版本，例如 `0.4.0`。
 - 完整版实现后：更新 major 版本到 `1.0.0`。
 
 ## 本地验证
@@ -148,7 +179,8 @@ npm run compile
 # 覆盖 SQL 解析/语句范围、变量、危险 SQL 检测、workspace 连接/SecretStorage、
 # 结果导出序列化、DDL Hover、CodeLens、SQL 文件绑定恢复、
 # MySQL/PostgreSQL 分页路径、SQLite 结构元数据、只读 JSON 单元格查看、
-# 表结构字段排序和 webview 行为/脚本语法。
+# 表结构字段排序、AI 协议/配置页、模型流式/tool call、隐私边界、
+# SQL 仅编辑器执行和 webview 行为/脚本语法。
 npm run verify
 
 # UI 调整后重新生成 README 截图。
@@ -179,6 +211,10 @@ CHROME_PATH="/path/to/chrome" npm run screenshots
 11. 单栏时，SQL Results、Table Properties 和连接表单在右侧创建分栏；已有分栏时复用当前活动栏。
 12. 结果导出由扩展宿主在 VS Code 保存对话框确认后写入文件；webview 不获得文件系统写权限。
 13. 仅 JSON/JSONB 类型列提供只读单元格弹窗；其他类型保持普通单元格，后续只按需增加只读查看器。
+14. OpenAI-compatible 模型适配层运行在 Extension Host，API Key 只从 SecretStorage 读取；Runtime 还会在发送或持久化文本前移除当前连接已保存的数据库密码和结构化连接信息。
+15. AI 会话只绑定一个连接，workspace state 仅保存已脱敏的展示消息、SQL 草稿和工具摘要，不保存完整 Schema 快照或结果行。最近草稿仅作为受预算限制的参考上下文回传给模型，以支持后续调整。
+16. SQL Explain 使用 CodeLens 提供的固定文档 URI、语句范围和文档版本读取 SQL，且不会调用查询执行器。
+17. Agent Chat 不提供执行工具或执行消息；SQL 草稿必须插入或打开到 SQL 编辑器，再由现有 Run CodeLens 和安全确认流程执行。
 
 ## 编辑边界
 
@@ -190,11 +226,9 @@ CHROME_PATH="/path/to/chrome" npm run screenshots
 - `0.1.x`：MVP 查询闭环、SQL 提示优化、连接表单体验打磨。
 - `0.2.x`：CSV/JSON/XLSX 结果导出、JSON 结果视图、SQL 变量、危险 SQL 确认、workspace 连接、SQL 文件连接绑定、更完整的连接编辑、DDL Hover 与表属性完整 DDL、CodeLens 执行入口和高频 Premium 能力增强。
 - `0.2.x`：结果字段注释与当前语句执行优化。
-- `0.2.x`：插件级自定义执行快捷键配置。
-- `0.2.x`：通过 bundling 优化 VSIX 体积。
-- `0.2.x`：更完整的连接编辑和导入/导出。
 - `0.2.7`：只读表结构字段排序。
-- `0.3.x`：查询历史、结果工作流优化和多表通配符字段注释。
+- `0.3.0`：AI Native Preview，通过 BYOK 接入 OpenAI-compatible API，提供 Agent Chat、语句级 SQL 理解，以及仅在编辑器中处理的 SQL 生成/修复/优化草稿。
+- `0.3.x` 后续：查询历史、更完整的 Schema/View 层级、结果工作流优化、多表通配符字段注释、自定义执行快捷键、连接配置导入导出和打包优化。
 - `1.0.0`：完整计划功能集。
 
 ## FAQ

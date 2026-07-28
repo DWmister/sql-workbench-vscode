@@ -112,9 +112,11 @@ function verifyPanelPlacement() {
   const resultPanel = fs.readFileSync(path.join(repoRoot, 'src', 'results', 'resultViewPanel.ts'), 'utf8');
   const tablePanel = fs.readFileSync(path.join(repoRoot, 'src', 'schema', 'tableDetailsPanel.ts'), 'utf8');
   const connectionPanel = fs.readFileSync(path.join(repoRoot, 'src', 'connection', 'connectionFormPanel.ts'), 'utf8');
+  const aiConfigurationPanel = fs.readFileSync(path.join(repoRoot, 'src', 'ai', 'configurationPanel.ts'), 'utf8');
   assert.ok(resultPanel.includes('getWebviewViewColumn'));
   assert.ok(tablePanel.includes('getWebviewViewColumn'));
   assert.ok(connectionPanel.includes('getWebviewViewColumn'));
+  assert.ok(aiConfigurationPanel.includes('getWebviewViewColumn'));
   assert.ok(resultPanel.includes('max-height: min(42vh, 360px)'));
   assert.ok(resultPanel.includes('body.vscode-light'));
 }
@@ -430,22 +432,30 @@ function verifyDangerousSqlDetection() {
 
 function verifyCodeLensProvider() {
   vscodeMock.languages.codeLensProviders = [];
-  registerSqlCodeLensProvider();
+  const controller = registerSqlCodeLensProvider();
 
   assert.strictEqual(vscodeMock.languages.codeLensProviders.length, 1);
   const provider = vscodeMock.languages.codeLensProviders[0].provider;
+  assert.strictEqual(typeof provider.onDidChangeCodeLenses, 'function');
+  assert.doesNotThrow(() => controller.refresh());
   const document = createTextDocument([
     'SELECT 1;',
     "SELECT ';' AS semicolon;",
   ].join('\n'));
   const lenses = provider.provideCodeLenses(document);
 
-  assert.strictEqual(lenses.length, 2);
+  assert.strictEqual(lenses.length, 4);
   assert.strictEqual(lenses[0].command.title, 'Run Statement');
-  assert.strictEqual(lenses[1].command.title, 'Run Statement #2');
+  assert.strictEqual(lenses[1].command.title, 'AI Explain');
+  assert.strictEqual(lenses[2].command.title, 'Run Statement #2');
+  assert.strictEqual(lenses[3].command.title, 'AI Explain');
   assert.strictEqual(lenses[0].command.command, 'sqlWorkbench.query.runStatementAtRange');
+  assert.strictEqual(lenses[1].command.command, 'sqlWorkbench.ai.explainSql');
   assert.strictEqual(lenses[0].command.arguments[0], document.uri);
   assert.ok(lenses[0].command.arguments[1] instanceof vscodeMock.Range);
+  assert.strictEqual(lenses[1].command.arguments[0], document.uri);
+  assert.ok(lenses[1].command.arguments[1] instanceof vscodeMock.Range);
+  assert.strictEqual(lenses[1].command.arguments[2], document.version);
 }
 
 async function verifyCompletionProviderFastTablePath() {
@@ -609,6 +619,52 @@ function verifyResultExportSerializers() {
   const firstPage = __resultViewPanelTestHooks.sliceDisplayResult(display, 1, 1);
   assert.strictEqual(firstPage.values.length, 1);
 
+  const trustedPaginationResult = {
+    sql: 'SELECT id FROM items',
+    columns: [{ name: 'id' }],
+    rows: [[1]],
+    rowCount: 25,
+    elapsedMs: 2,
+    readOnly: true,
+    connectionId: 'trusted-connection',
+    connectionName: 'Trusted',
+    executedAt: new Date().toISOString(),
+    pagination: {
+      mode: 'server',
+      sourceSql: 'SELECT id FROM items',
+      variableValues: { status: 'active' },
+      page: 1,
+      pageSize: 10,
+      totalRows: 25,
+    },
+  };
+  assert.deepStrictEqual(
+    __resultViewPanelTestHooks.createTrustedPageRequest(
+      [trustedPaginationResult],
+      {
+        resultIndex: 0,
+        page: 2,
+        sql: 'DELETE FROM items',
+        connectionId: 'forged',
+        pageSize: 50000,
+        totalRows: 1,
+      },
+    ),
+    {
+      resultIndex: 0,
+      connectionId: 'trusted-connection',
+      sql: 'SELECT id FROM items',
+      variableValues: { status: 'active' },
+      page: 2,
+      pageSize: 10,
+      totalRows: 25,
+    },
+  );
+  assert.strictEqual(
+    __resultViewPanelTestHooks.createTrustedPageRequest([trustedPaginationResult], { resultIndex: 0, page: 4 }),
+    undefined,
+  );
+
   const highlighted = __resultViewPanelTestHooks.highlightResultSql(
     "SELECT DISTINCT COALESCE(`name`, 'x<y')::VARCHAR FROM items WHERE id = 42 -- note",
   );
@@ -687,6 +743,8 @@ async function verifyDriverPageConnectionLifecycle() {
   let failMysqlComments = false;
   let failPostgresqlComments = false;
   const mysqlCommentQueries = [];
+  const mysqlLifecycleQueries = [];
+  const postgresqlLifecycleQueries = [];
   const metadataWarnings = [];
 
   try {
@@ -700,6 +758,7 @@ async function verifyDriverPageConnectionLifecycle() {
           }
 
           const sql = String(query?.sql ?? query);
+          mysqlLifecycleQueries.push(sql.trim());
           if (sql.includes('FROM information_schema.columns')) {
             mysqlCommentQueries.push(sql);
             if (failMysqlComments) {
@@ -793,6 +852,7 @@ async function verifyDriverPageConnectionLifecycle() {
           throw new Error('postgres query ran after end');
         }
 
+        postgresqlLifecycleQueries.push(String(sql).trim());
         if (String(sql).includes('FROM pg_description description')) {
           if (failPostgresqlComments) {
             throw new Error('postgres comments unavailable');
@@ -924,6 +984,7 @@ async function verifyDriverPageConnectionLifecycle() {
     assert.deepStrictEqual(postgresqlFallback.rows[0], [2, 'Grace', '{"ok":true}', 3]);
     assert.ok(postgresqlFallback.columns.every((column) => column.comment === undefined));
     assert.strictEqual(pgEndCount, 3);
+
   } finally {
     mysqlModule.createConnection = originalCreateConnection;
     pgModule.Client = originalClient;
@@ -1542,7 +1603,6 @@ function verifyResultWebviewBehavior() {
       format: 'xlsx',
       scope: 'all',
       page: 1,
-      pageSize: 10,
     },
   });
 
@@ -1871,6 +1931,7 @@ function createTextDocument(text, filePath = path.join(os.tmpdir(), 'verify.sql'
   return {
     uri: vscodeMock.Uri.file(filePath),
     languageId,
+    version: 1,
     getText(range) {
       if (!range) {
         return text;
@@ -2025,6 +2086,7 @@ function createVscodeMock() {
       }
 
       fire() {}
+      dispose() {}
     },
     TreeItem: class TreeItem {
       constructor(label, collapsibleState) {

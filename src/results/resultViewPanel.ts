@@ -12,7 +12,7 @@ export interface ResultPageRequest {
   totalRows: number;
 }
 
-interface ResultViewPanelOptions {
+export interface ResultViewPanelOptions {
   loadPage?: (request: ResultPageRequest) => Promise<QueryResult>;
 }
 
@@ -47,15 +47,19 @@ interface ResultsPayload {
 
 type WebviewMessage =
   | { type?: 'ready' }
-  | { type?: 'requestPage'; payload?: ResultPageRequest }
+  | { type?: 'requestPage'; payload?: PageNavigationRequest }
   | { type?: 'exportResult'; payload?: ExportRequest };
+
+interface PageNavigationRequest {
+  resultIndex: number;
+  page: number;
+}
 
 interface ExportRequest {
   resultIndex: number;
   format: 'csv' | 'json' | 'xlsx';
   scope: 'page' | 'all';
   page: number;
-  pageSize: number;
 }
 
 const FULL_EXPORT_ROW_LIMIT = 50_000;
@@ -64,6 +68,7 @@ export class ResultViewPanel {
   private panel: vscode.WebviewPanel | undefined;
   private messageSubscription: vscode.Disposable | undefined;
   private lastPayload: ResultsPayload | undefined;
+  private lastResults: QueryResult[] = [];
   private paginationVariables = new Map<number, Record<string, unknown>>();
 
   constructor(
@@ -72,6 +77,7 @@ export class ResultViewPanel {
   ) {}
 
   public show(results: QueryResult[]): void {
+    this.lastResults = results;
     this.lastPayload = toPayload(results, getResultPageSize());
     this.paginationVariables = getPaginationVariables(results);
     const viewColumn = this.panel?.viewColumn ?? getWebviewViewColumn();
@@ -119,14 +125,18 @@ export class ResultViewPanel {
     }
 
     try {
-      const result = await this.options.loadPage({
-        ...message.payload,
-        variableValues: this.paginationVariables.get(message.payload.resultIndex),
-      });
+      const trustedRequest = this.createPageRequest(message.payload);
+      if (!trustedRequest) {
+        throw new Error('Invalid result page request.');
+      }
+      const result = await this.options.loadPage(trustedRequest);
       const displayResult = toDisplayResult(result);
 
       if (this.lastPayload?.results[message.payload.resultIndex]) {
         this.lastPayload.results[message.payload.resultIndex] = displayResult;
+      }
+      if (this.lastResults[message.payload.resultIndex]) {
+        this.lastResults[message.payload.resultIndex] = result;
       }
       if (result.pagination?.variableValues) {
         this.paginationVariables.set(message.payload.resultIndex, result.pagination.variableValues);
@@ -161,10 +171,33 @@ export class ResultViewPanel {
     });
   }
 
+  private createPageRequest(request: PageNavigationRequest): ResultPageRequest | undefined {
+    return createTrustedPageRequest(this.lastResults, request);
+  }
+
   private async exportResult(request: ExportRequest): Promise<void> {
+    if (
+      !Number.isInteger(request.resultIndex)
+      || request.resultIndex < 0
+      || !Number.isInteger(request.page)
+      || request.page < 1
+      || (request.format !== 'csv' && request.format !== 'json' && request.format !== 'xlsx')
+      || (request.scope !== 'page' && request.scope !== 'all')
+    ) {
+      await vscode.window.showWarningMessage('Invalid export request.');
+      return;
+    }
+
     const result = this.lastPayload?.results[request.resultIndex];
-    if (!result || result.error || result.columns.length === 0) {
+    const trustedResult = this.lastResults[request.resultIndex];
+    if (!result || !trustedResult || result.error || result.columns.length === 0) {
       await vscode.window.showWarningMessage('There is no tabular result to export.');
+      return;
+    }
+    const trustedPageSize = trustedResult.pagination?.pageSize ?? getResultPageSize();
+    const trustedPageCount = Math.max(1, Math.ceil(trustedResult.rowCount / trustedPageSize));
+    if (request.page > trustedPageCount) {
+      await vscode.window.showWarningMessage('Invalid export page.');
       return;
     }
 
@@ -174,19 +207,19 @@ export class ResultViewPanel {
         return;
       }
 
-      const exportResult = request.scope === 'all' && result.pagination && this.options.loadPage
+      const exportResult = request.scope === 'all' && trustedResult.pagination && trustedResult.connectionId && this.options.loadPage
         ? toDisplayResult(await this.options.loadPage({
           resultIndex: request.resultIndex,
-          connectionId: result.connectionId ?? '',
-          sql: result.pagination.sourceSql,
-          variableValues: this.paginationVariables.get(request.resultIndex),
+          connectionId: trustedResult.connectionId,
+          sql: trustedResult.pagination.sourceSql,
+          variableValues: trustedResult.pagination.variableValues,
           page: 1,
-          pageSize: result.pagination.totalRows,
-          totalRows: result.pagination.totalRows,
+          pageSize: trustedResult.pagination.totalRows,
+          totalRows: trustedResult.pagination.totalRows,
         }))
         : result;
       const scopedResult = request.scope === 'page' && !result.pagination
-        ? sliceDisplayResult(exportResult, request.page, request.pageSize)
+        ? sliceDisplayResult(exportResult, request.page, trustedPageSize)
         : exportResult;
       const content = toExportBuffer(scopedResult, request.format);
       const uri = await vscode.window.showSaveDialog({
@@ -221,6 +254,36 @@ function toPayload(results: QueryResult[], pageSize: number): ResultsPayload {
     resultCount: results.length,
     totalRows,
     results: results.map(toDisplayResult),
+  };
+}
+
+function createTrustedPageRequest(
+  results: QueryResult[],
+  request: PageNavigationRequest,
+): ResultPageRequest | undefined {
+  if (!Number.isInteger(request.resultIndex) || request.resultIndex < 0 || !Number.isInteger(request.page)) {
+    return undefined;
+  }
+
+  const result = results[request.resultIndex];
+  const pagination = result?.pagination;
+  if (!result || !pagination || !result.connectionId) {
+    return undefined;
+  }
+
+  const pageCount = Math.max(1, Math.ceil(pagination.totalRows / pagination.pageSize));
+  if (request.page < 1 || request.page > pageCount) {
+    return undefined;
+  }
+
+  return {
+    resultIndex: request.resultIndex,
+    connectionId: result.connectionId,
+    sql: pagination.sourceSql,
+    variableValues: pagination.variableValues,
+    page: request.page,
+    pageSize: pagination.pageSize,
+    totalRows: pagination.totalRows,
   };
 }
 
@@ -339,7 +402,7 @@ function getClientScript(): string {
     'window.addEventListener("message", (event) => { const data = event.data; if (!data) return; if (data.type === "results") { state.payload = data.payload; state.pages = state.payload.results.map((result) => result.pagination ? result.pagination.page : 1); state.loading = {}; render(); } else if (data.type === "pageResult") { state.payload.results[data.payload.resultIndex] = data.payload.result; state.pages[data.payload.resultIndex] = data.payload.result.pagination ? data.payload.result.pagination.page : 1; state.loading[data.payload.resultIndex] = false; renderResult(data.payload.resultIndex); renderToolbar(); } else if (data.type === "pageError") { state.loading[data.payload.resultIndex] = false; const body = document.querySelector("[data-body=\\"" + data.payload.resultIndex + "\\"]"); if (body) body.innerHTML = "<div class=\\"error\\">" + escapeHtml(data.payload.message) + "</div>"; } });',
     'document.addEventListener("click", (event) => { const button = event.target.closest("button[data-action]"); if (!button) return; const action = button.dataset.action; if (action === "modal-close") { closeCellModal(); return; } if (action === "modal-format") { formatCellModalJson(); return; } if (action === "modal-copy") { copyCellModalText(); return; } if (action === "export-close") { closeExportModal(); return; } if (action === "export-format") { if (state.exportModal) state.exportModal.format = button.dataset.format || "csv"; refreshExportModal(); return; } if (action === "export-scope") { if (state.exportModal && (button.dataset.scope !== "all" || state.exportModal.canExportAll)) state.exportModal.scope = button.dataset.scope || "page"; refreshExportModal(); return; } if (action === "export-confirm") { confirmExportModal(); return; } if (!state.payload) return; const index = Number(button.dataset.index); const result = state.payload.results[index]; if (action === "view-cell") { openCellModal(index, Number(button.dataset.row), Number(button.dataset.column)); return; } if (action === "export-open") { openExportModal(index); return; } if (action === "table" || action === "json") { state.modes[index] = action; renderResult(index); return; } const pageSize = result.pagination ? result.pagination.pageSize : state.payload.pageSize; const pageCount = getPageCount(result, pageSize); const current = state.pages[index] || 1; const next = action === "prev" ? Math.max(1, current - 1) : Math.min(pageCount, current + 1); if (next === current) return; if (result.pagination && result.connectionId) { requestServerPage(index, result, next); } else { state.pages[index] = next; renderResult(index); } });',
     'document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeCellModal(); closeExportModal(); } });',
-    'function requestServerPage(index, result, page) { state.loading[index] = true; state.pages[index] = page; renderResult(index); vscode.postMessage({ type: "requestPage", payload: { resultIndex: index, connectionId: result.connectionId, sql: result.pagination.sourceSql, page, pageSize: result.pagination.pageSize, totalRows: result.pagination.totalRows } }); }',
+    'function requestServerPage(index, result, page) { state.loading[index] = true; state.pages[index] = page; renderResult(index); vscode.postMessage({ type: "requestPage", payload: { resultIndex: index, page } }); }',
     'function render() { renderToolbar(); const root = document.getElementById("results"); root.innerHTML = state.payload.results.map((_, index) => sectionShell(index)).join(""); state.payload.results.forEach((_, index) => renderResult(index)); }',
     'function renderToolbar() { const payload = state.payload; document.getElementById("toolbar").innerHTML = "<span class=\\"title\\">" + escapeHtml(payload.connectionName) + "</span><span class=\\"meta\\">" + payload.resultCount + " result" + (payload.resultCount === 1 ? "" : "s") + " · Total " + payload.totalRows + " · 耗时: " + formatElapsed(payload.elapsedMs) + (payload.hasError ? " · error" : "") + "</span><span class=\\"badge\\">Page size " + payload.pageSize + "</span>"; }',
     'function sectionShell(index) { return "<section data-result=\\"" + index + "\\"><div class=\\"section-header\\" data-header=\\"" + index + "\\"></div><pre class=\\"sql-preview\\" data-sql=\\"" + index + "\\"></pre><div data-body=\\"" + index + "\\"></div></section>"; }',
@@ -356,7 +419,7 @@ function getClientScript(): string {
     'function closeExportModal() { const modal = document.getElementById("export-modal"); if (modal) modal.remove(); state.exportModal = undefined; }',
     'function refreshExportModal() { const modal = document.getElementById("export-modal"); if (!modal || !state.exportModal) return; const current = state.exportModal; const html = renderExportModal(); modal.remove(); state.exportModal = current; document.body.insertAdjacentHTML("beforeend", html); }',
     'function renderExportModal() { const current = state.exportModal; const formats = ["csv", "json", "xlsx"]; const formatButtons = formats.map((format) => "<button data-action=\\"export-format\\" data-format=\\"" + format + "\\" class=\\"" + (current.format === format ? "active" : "") + "\\">" + format.toUpperCase() + "</button>").join(""); const allDisabled = current.canExportAll ? "" : " disabled title=\\"Full export is capped at 50,000 rows.\\""; const hint = current.canExportAll ? "" : "<div class=\\"export-hint\\">数据量过大时暂不支持导出全部，请导出当前页。</div>"; return "<div class=\\"modal-backdrop\\" id=\\"export-modal\\"><div class=\\"modal\\"><div class=\\"modal-head\\"><span class=\\"modal-title\\">导出选项</span></div><div class=\\"modal-body\\"><div class=\\"export-options\\"><span class=\\"meta\\">类型</span><div class=\\"export-choice-group\\">" + formatButtons + "</div><span class=\\"meta\\">范围</span><div class=\\"export-choice-group\\"><button data-action=\\"export-scope\\" data-scope=\\"page\\" class=\\"" + (current.scope === "page" ? "active" : "") + "\\">当前页</button><button data-action=\\"export-scope\\" data-scope=\\"all\\" class=\\"" + (current.scope === "all" ? "active" : "") + "\\"" + allDisabled + ">全部数据</button></div>" + hint + "</div></div><div class=\\"modal-actions\\"><button data-action=\\"export-close\\">关闭</button><button data-action=\\"export-confirm\\">导出</button></div></div></div>"; }',
-    'function confirmExportModal() { const current = state.exportModal; if (!current) return; if (current.scope === "all" && !current.canExportAll) { current.scope = "page"; refreshExportModal(); return; } vscode.postMessage({ type: "exportResult", payload: { resultIndex: current.resultIndex, format: current.format, scope: current.scope, page: current.page, pageSize: current.pageSize } }); closeExportModal(); }',
+    'function confirmExportModal() { const current = state.exportModal; if (!current) return; if (current.scope === "all" && !current.canExportAll) { current.scope = "page"; refreshExportModal(); return; } vscode.postMessage({ type: "exportResult", payload: { resultIndex: current.resultIndex, format: current.format, scope: current.scope, page: current.page } }); closeExportModal(); }',
     'function formatCellModalJson() { const viewer = document.getElementById("cell-viewer"); if (!viewer) return; try { viewer.value = JSON.stringify(JSON.parse(viewer.value), null, 2); } catch { viewer.focus(); } }',
     'function copyCellModalText() { const viewer = document.getElementById("cell-viewer"); if (!viewer) return; viewer.select(); document.execCommand("copy"); }',
     'function formatModalValue(value, fallback) { if (value && typeof value === "object" && value.type === "blob") return "<BLOB " + value.bytes + " bytes>"; if (value === null) return "NULL"; if (typeof value === "string") return value; if (typeof value === "object") return JSON.stringify(value, null, 2); return fallback !== undefined ? String(fallback) : String(value); }',
@@ -800,6 +863,7 @@ function escapeSqlHtml(value: string): string {
 }
 
 export const __resultViewPanelTestHooks = {
+  createTrustedPageRequest,
   toDisplayResult,
   sliceDisplayResult,
   toCsv,

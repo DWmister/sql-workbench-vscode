@@ -2,6 +2,31 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.3.0 - 2026-07-28
+
+### Added
+
+- Added a BYOK OpenAI-compatible model adapter with HTTPS/loopback validation, SecretStorage API keys, streaming responses, tool calls, cancellation, bounded payloads, and sanitized errors.
+- Added connection-bound Agent Chat that can search redacted Schema metadata and create structured SQL drafts for generation, fixes, and optimization.
+- Added statement-level `AI Explain` CodeLens and Command Palette actions that explain a fixed SQL range without executing it.
+- Added a dedicated model-configuration Webview with exact Model ID guidance and API Key keep/replace/remove behavior.
+- Added optional global SQL Explain instructions for response language, format, and review focus while preserving fixed safety requirements.
+- Added Enter-to-send, Shift+Enter-to-newline, and explicit SQL CodeLens refresh after inserting or opening a draft.
+
+### Improved
+
+- Agent messages and SQL drafts now share one chronological timeline, and the chat follows the newest streaming or completed response.
+- Follow-up Agent Chat requests include recent host-stored SQL drafts as bounded reference context.
+- SQL Explain stores a concise user-facing request in conversation history while keeping fixed model instructions internal.
+- Agent Chat uses one shared 8,000-character prompt limit across the Webview and Extension Host protocol.
+
+### Security
+
+- Query-result rows and cell values are never sent to the model or persisted in AI session history.
+- Agent Chat has no SQL execution tool, Webview action, approval route, or QueryRunner entry point.
+- Draft SQL is resolved from Extension Host session state and must enter a `.sql` editor before the user can execute it.
+- Connection strings, configured API keys, and stored database passwords are redacted before model requests or workspace persistence without replacing matching substrings inside ordinary SQL identifiers and values.
+
 ## 0.2.7 - 2026-07-28
 
 ### Added

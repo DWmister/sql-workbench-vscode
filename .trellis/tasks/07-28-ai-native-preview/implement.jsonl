@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "AI 请求、工具调用、Extension Host、Webview 与 QueryRunner 构成跨层数据流。"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Agent Chat 侧边栏和配置页面需要沿用 Webview 交互、可访问性和本地状态约定。"}

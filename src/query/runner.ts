@@ -260,16 +260,7 @@ async function executeMysql(
   const queryTimeoutMs = normalizePositiveInteger(executionOptions.queryTimeoutMs, 30000);
 
   try {
-    database = await mysql.createConnection({
-      host: connection.host,
-      port: connection.port,
-      database: connection.database,
-      user: connection.username,
-      password: await options.getPassword?.(connection.id),
-      namedPlaceholders: false,
-      multipleStatements: false,
-      connectTimeout: queryTimeoutMs,
-    });
+    database = await createMysqlConnection(connection, options, queryTimeoutMs);
 
     if (statements.length === 1 && isPageableSelect(statements[0])) {
       results.push(await executeMysqlPage(
@@ -326,16 +317,7 @@ async function fetchMysqlPage(
   let database: mysql.Connection | undefined;
 
   try {
-    database = await mysql.createConnection({
-      host: connection.host,
-      port: connection.port,
-      database: connection.database,
-      user: connection.username,
-      password: await options.getPassword?.(connection.id),
-      namedPlaceholders: false,
-      multipleStatements: false,
-      connectTimeout: queryTimeoutMs,
-    });
+    database = await createMysqlConnection(connection, options, queryTimeoutMs);
     return await executeMysqlPage(
       database,
       connection,
@@ -410,16 +392,7 @@ async function executePostgresql(
   }
 
   const queryTimeoutMs = normalizePositiveInteger(executionOptions.queryTimeoutMs, 30000);
-  const client = new Client({
-    host: connection.host,
-    port: connection.port,
-    database: connection.database,
-    user: connection.username,
-    password: await options.getPassword?.(connection.id),
-    connectionTimeoutMillis: queryTimeoutMs,
-    query_timeout: queryTimeoutMs,
-    statement_timeout: queryTimeoutMs,
-  });
+  const client = await createPostgresqlClient(connection, options, queryTimeoutMs);
   const results: QueryResult[] = [];
 
   try {
@@ -467,16 +440,7 @@ async function fetchPostgresqlPage(
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult> {
   const queryTimeoutMs = normalizePositiveInteger(executionOptions.queryTimeoutMs, 30000);
-  const client = new Client({
-    host: connection.host,
-    port: connection.port,
-    database: connection.database,
-    user: connection.username,
-    password: await options.getPassword?.(connection.id),
-    connectionTimeoutMillis: queryTimeoutMs,
-    query_timeout: queryTimeoutMs,
-    statement_timeout: queryTimeoutMs,
-  });
+  const client = await createPostgresqlClient(connection, options, queryTimeoutMs);
 
   try {
     await client.connect();
@@ -980,6 +944,40 @@ function getAffectedRows(rows: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+async function createMysqlConnection(
+  connection: ConnectionConfig,
+  options: QueryRunnerOptions,
+  queryTimeoutMs: number,
+): Promise<mysql.Connection> {
+  return mysql.createConnection({
+    host: connection.host,
+    port: connection.port,
+    database: connection.database,
+    user: connection.username,
+    password: await options.getPassword?.(connection.id),
+    namedPlaceholders: false,
+    multipleStatements: false,
+    connectTimeout: queryTimeoutMs,
+  });
+}
+
+async function createPostgresqlClient(
+  connection: ConnectionConfig,
+  options: QueryRunnerOptions,
+  queryTimeoutMs: number,
+): Promise<Client> {
+  return new Client({
+    host: connection.host,
+    port: connection.port,
+    database: connection.database,
+    user: connection.username,
+    password: await options.getPassword?.(connection.id),
+    connectionTimeoutMillis: queryTimeoutMs,
+    query_timeout: queryTimeoutMs,
+    statement_timeout: queryTimeoutMs,
+  });
 }
 
 function getResultPageSize(executionOptions: QueryExecutionOptions): number {

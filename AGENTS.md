@@ -20,6 +20,14 @@ Managed by Trellis. Edits outside this block are preserved; edits inside may be 
 
 <!-- TRELLIS:END -->
 
+## Git Mutation Authorization
+
+- Never run `git add`, `git commit`, `git commit --amend`, `git tag`, or `git push` unless the user explicitly requests that exact class of Git mutation.
+- Do not infer commit permission from requests such as “完成”, “执行修改”, “打包”, “发布前检查”, or from any Trellis phase or skill.
+- Completing a task, archiving Trellis artifacts, recording a journal, validating, or building a VSIX does not require a commit.
+- Trellis task/archive and journal operations must keep `session_auto_commit: false`; their file changes remain in the working tree until the user explicitly authorizes a commit.
+- If the user requests a commit, first present the exact commit plan and excluded files, then wait for confirmation before staging or committing.
+
 ## Release Version and VSIX Packaging
 
 - When starting a new modification after the previous product changes have been committed, update the extension version once. Keep `package.json`, `package-lock.json`, the README version badges, and `CHANGELOG.md` in sync.

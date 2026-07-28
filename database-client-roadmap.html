@@ -870,7 +870,7 @@
         <button class="active" type="button" data-filter="all">全部</button>
         <button type="button" data-filter="v0.1">v0.1 MVP</button>
         <button type="button" data-filter="v0.2">v0.2 增强</button>
-        <button type="button" data-filter="v0.3">v0.3 下一步</button>
+        <button type="button" data-filter="v0.3">v0.3 当前</button>
         <button type="button" data-filter="v1.0">v1.0 IDE</button>
         <button type="button" data-filter="v1.5">v1.5 高级</button>
         <button type="button" data-filter="v2.0">v2.0 全栈</button>
@@ -880,11 +880,12 @@
     <section class="hero">
       <div class="brief">
         <div class="eyebrow">实施校准 · 更新于 2026-07-28</div>
-        <h1>v0.1 建立查询闭环，v0.2 继续补齐高频效率能力。</h1>
+        <h1>v0.3.0 转向 AI Native：让 Agent 理解 Schema，也守住 SQL 边界。</h1>
         <p class="hero-copy">
-          这份路线图已经按当前代码和发布记录重新校准。连接、SQL、只读结果是 v0.1 基线；
+          这份路线图已经按当前代码和开发状态重新校准。连接、SQL、只读结果是 v0.1 基线；
           v0.2 已交付 CSV / JSON / XLSX、变量、Workspace 连接、完整表 DDL 和文件绑定恢复；
-          v0.2.x 继续通过表结构字段排序完善查找效率，并固化只读安全边界。
+          v0.2.7 以表结构字段排序完成 0.2 版本线。v0.3.0 已交付 AI Native Preview：
+          通过 BYOK 接入 OpenAI-compatible API，提供 Agent Chat 与语句级 SQL 理解。
         </p>
         <div class="north-star">
           <div class="metric">
@@ -896,8 +897,8 @@
             <span>连接数量限制。竞品付费墙能力按阶段免费实现</span>
           </div>
           <div class="metric">
-            <strong>Local</strong>
-            <span>密码进 SecretStorage，默认不上传、不注册、不遥测</span>
+            <strong>BYOK</strong>
+            <span>密钥进 SecretStorage，插件直接连接用户配置的模型 API</span>
           </div>
         </div>
       </div>
@@ -932,8 +933,8 @@
           <li>
             <span class="num">4</span>
             <div>
-              <b>ER 与 Service 面板延后</b>
-              <p>当前优先增强 SQL、结果、导出和表属性；ER 图进入 v1.5，Redis、SSH、Docker 等能力进入长期路线。</p>
+              <b>AI 不等于自动执行</b>
+              <p>SQL Explain 不执行语句、不发送结果值；Agent Chat 生成的所有 SQL 都必须进入 .sql 编辑器，由用户决定是否执行。</p>
             </div>
           </li>
         </ol>
@@ -999,7 +1000,7 @@
 
         <article class="phase" data-phase="v0.2">
           <div class="phase-head">
-            <div class="phase-kicker"><span>v0.2.x</span><span>当前收尾 · 超额</span></div>
+            <div class="phase-kicker"><span>v0.2.x</span><span>已交付 · 超额</span></div>
             <h3>免费化高频 Premium</h3>
           </div>
           <div class="phase-body">
@@ -1027,25 +1028,31 @@
 
         <article class="phase" data-phase="v0.3">
           <div class="phase-head">
-            <div class="phase-kicker"><span>v0.3.x</span><span>下一阶段</span></div>
-            <h3>查询效率收口</h3>
+            <div class="phase-kicker"><span>v0.3.0</span><span>已交付</span></div>
+            <h3>AI Native Preview</h3>
           </div>
           <div class="phase-body">
-            <p class="phase-goal">补齐已确认但没有进入 0.1 / 0.2 的日常效率能力，并继续压低安装和恢复成本。</p>
+            <p class="phase-goal">升级为面向开发者的 Schema-aware Agent：理解、生成、修复和优化 SQL，同时让模型访问与数据库执行都可见、可控。</p>
             <div class="chips">
-              <span class="chip">History</span>
-              <span class="chip">Schema</span>
-              <span class="chip">DX</span>
+              <span class="chip">BYOK</span>
+              <span class="chip">SQL Explain</span>
+              <span class="chip">Agent</span>
             </div>
             <ul class="phase-list">
-              <li>查询历史：按连接记录 SQL、耗时、时间并可重新打开</li>
-              <li>补充 Database / Schema / View 层级与元数据刷新</li>
-              <li>结果查看、分页和错误恢复继续优化</li>
-              <li>多表通配符结果字段注释</li>
-              <li>自定义执行快捷键</li>
-              <li>连接配置导入导出</li>
-              <li>依赖裁剪与 VSIX 体积优化</li>
-              <li>表数据继续通过 SQL 查询，不新增独立 Data 页签</li>
+              <li>BYOK 直连用户配置的 OpenAI-compatible API；API Key 仅存 SecretStorage</li>
+              <li>插件内模型适配层处理流式响应与工具调用，不提供服务端模型网关</li>
+              <li>Agent Chat 侧边栏；一个会话只绑定一个活动连接</li>
+              <li>独立模型配置页；Model ID 必须填写 API 接受的精确名称，Key 仅存 SecretStorage</li>
+              <li>Run 旁增加 AI Explain；也可解释选区或光标所在语句</li>
+              <li>全局 Explain 附加说明可定制语言、格式和审查重点，固定安全 Prompt 不可覆盖</li>
+              <li>结合相关且脱敏的 Schema 生成、修复和优化 SQL</li>
+              <li>消息与 SQL 草稿按时间顺序展示，聊天区自动跟随最新回应</li>
+              <li>后续对话可基于最近的宿主 SQL 草稿继续调整，并受统一上下文预算限制</li>
+              <li>连接串、API Key 与已保存数据库密码在模型请求和工作区持久化前脱敏</li>
+              <li>所有 SQL 只生成草稿，Agent 不得执行</li>
+              <li>草稿仅提供 Insert/Open；执行统一发生在 .sql 编辑器</li>
+              <li>不发送查询结果行或单元格值；SQL Explain 本身不执行 SQL</li>
+              <li>v0.3.x 后续再补查询历史、Schema/View 深度与结果工作流</li>
             </ul>
           </div>
         </article>
@@ -1078,12 +1085,11 @@
             <h3>高级生产力</h3>
           </div>
           <div class="phase-body">
-            <p class="phase-goal">面向复杂环境、迁移、跳板机和 AI 辅助，把生产场景补齐。</p>
+            <p class="phase-goal">面向复杂环境、迁移和跳板机，把高级生产场景补齐。</p>
             <div class="chips">
               <span class="chip">ER</span>
               <span class="chip">结构对比</span>
               <span class="chip">SSH Tunnel</span>
-              <span class="chip">AI</span>
             </div>
             <ul class="phase-list">
               <li>完整 DDL Hover 与跳转定义</li>
@@ -1092,7 +1098,7 @@
               <li>结构对比：生成迁移 SQL，默认不自动执行</li>
               <li>SSH 隧道、本地端口自动分配与释放</li>
               <li>HTTP / SOCKS 代理</li>
-              <li>MongoDB 基础管理，AI 助手只读版</li>
+              <li>MongoDB 基础管理</li>
             </ul>
           </div>
         </article>
@@ -1160,18 +1166,18 @@
             </div>
           </div>
           <div class="matrix-row">
-            <div class="matrix-cell matrix-label">P2<br />下一阶段</div>
+            <div class="matrix-cell matrix-label">P0<br />已交付</div>
             <div class="matrix-cell">
-              <h4>Query History</h4>
-              <p>按连接记录 SQL、耗时和时间，并支持重新打开。</p>
+              <h4>Agent Chat</h4>
+              <p>单连接会话、Schema 工具、SQL 草稿和流式交互。</p>
             </div>
             <div class="matrix-cell">
-              <h4>Schema Depth</h4>
-              <p>补充 Database / Schema / View 层级与缓存刷新。</p>
+              <h4>SQL Explain</h4>
+              <p>从 CodeLens 或命令面板理解选中 SQL / 当前语句，不执行 SQL。</p>
             </div>
             <div class="matrix-cell">
-              <h4>Packaging + DX</h4>
-              <p>快捷键、连接配置导入导出、依赖裁剪和 VSIX 体积优化。</p>
+              <h4>BYOK + Safety</h4>
+              <p>OpenAI-compatible 模型适配、独立配置页、密钥隔离、结果值禁传和禁止 Agent 执行。</p>
             </div>
           </div>
           <div class="matrix-row">
@@ -1185,8 +1191,8 @@
               <p>Redis、MongoDB、SSH、SFTP、端口转发和 Docker。</p>
             </div>
             <div class="matrix-cell">
-              <h4>AI + Sync</h4>
-              <p>AI 只读优先；同步使用本地加密与用户自有存储。</p>
+              <h4>Remote + Sync</h4>
+              <p>远程环境能力；同步使用本地加密与用户自有存储。</p>
             </div>
           </div>
         </div>
@@ -1242,8 +1248,12 @@
             <span>globalState / workspace config 保存非敏感字段，SecretStorage 保存密码、token、私钥。</span>
           </div>
           <div class="arch-node">
+            <strong>Model Adapter</strong>
+            <span>插件内直连用户 BYOK 的 OpenAI-compatible API；处理流式响应、工具调用、取消和脱敏错误。</span>
+          </div>
+          <div class="arch-node">
             <strong>Safety Layer</strong>
-            <span>危险 SQL 确认、生产连接标识、AI 执行确认、查询日志。</span>
+            <span>危险 SQL 确认、生产连接标识、Agent 无执行入口、禁止发送结果值。</span>
           </div>
         </div>
 
@@ -1261,7 +1271,7 @@
           </div>
           <div class="arch-node">
             <strong>Webview Apps</strong>
-            <span>Result Viewer、Export Dialog、Table Properties、Connection Form，以及未来的 DDL / Mock SQL Generator 和 ER Diagram。</span>
+            <span>Agent Chat、AI Configuration、Result Viewer、Export Dialog、Table Properties、Connection Form，以及未来的 DDL / Mock SQL Generator 和 ER Diagram。</span>
           </div>
           <div class="arch-node">
             <strong>External Tools</strong>
@@ -1274,7 +1284,7 @@
     <section class="section">
       <div class="section-title">
         <h2>版本落地复盘</h2>
-        <p>0.1 和 v0.2 基线已按实际代码归档；v0.2.x 持续收尾，未完成项进入明确版本。</p>
+        <p>0.1 与 v0.2 已按实际代码归档；v0.2.7 完成字段排序后，v0.3.0 转入 AI Native Preview。</p>
       </div>
       <div class="milestones">
         <div class="week">
@@ -1298,20 +1308,20 @@
           <p>变量、CodeLens、每文件绑定、指纹恢复、危险 SQL 确认。</p>
         </div>
         <div class="week">
-          <strong>v0.2.x · 当前收尾</strong>
+          <strong>v0.2.x · 已交付</strong>
           <h4>完整表 DDL</h4>
           <p>Columns / DDL、三库原生结构、语法着色、复制、刷新、重试和 v0.2.7 字段排序。</p>
         </div>
         <div class="week">
-          <strong>v0.3.x · 下一步</strong>
-          <h4>待补能力</h4>
-          <p>查询历史、Schema/View 层级、多表通配符字段注释、快捷键、配置导入导出和体积优化。</p>
+          <strong>v0.3.0 · 已交付</strong>
+          <h4>AI Native Preview</h4>
+          <p>BYOK 模型适配、Agent Chat、SQL Explain 和编辑器 SQL 草稿；Agent 不执行 SQL，结果值不发送给模型。</p>
         </div>
       </div>
     </section>
 
     <p class="note">
-      当前验收口径：连接、查结构、执行 SQL、分页查看、JSON 检查和 CSV / JSON / XLSX 导出可以形成日常闭环；结果网格和表属性保持只读，任何数据或结构修改都通过可见 SQL 完成。
+      v0.3.0 验收口径：AI 能理解、生成、修复和优化 SQL；解释不执行语句、不发送结果值；所有 SQL 仅形成可审阅草稿，并必须进入 .sql 编辑器后由用户执行。现有连接、查询、结果与导出闭环不得回归。
     </p>
   </main>
 

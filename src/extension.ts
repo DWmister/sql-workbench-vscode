@@ -1,4 +1,14 @@
 import * as vscode from 'vscode';
+import { AiAgentRuntime } from './ai/agentRuntime';
+import { AiAgentViewProvider } from './ai/agentViewProvider';
+import { registerAiCommands } from './ai/commands';
+import { registerAiConfigurationCommand } from './ai/configurationCommand';
+import { AiConfigurationStore } from './ai/configurationStore';
+import { AI_AGENT_VIEW_ID } from './ai/ids';
+import { OpenAiCompatibleAdapter } from './ai/openAiCompatibleAdapter';
+import { createAiSchemaTools } from './ai/schemaTools';
+import { AiSessionStore } from './ai/sessionStore';
+import { AiSqlDraftHost } from './ai/sqlDrafts';
 import { registerSqlHoverProvider } from './completion/sqlHoverProvider';
 import { registerSqlCompletionProvider } from './completion/sqlCompletionProvider';
 import { ActiveConnectionState, isSqlDocument, type ConnectionResolver } from './connection/activeConnectionState';
@@ -13,6 +23,7 @@ import {
 import { registerQueryCommands } from './query/commands';
 import { createQueryRunner } from './query/runner';
 import { registerSqlCodeLensProvider } from './query/sqlCodeLensProvider';
+import { ResultViewPanel } from './results/resultViewPanel';
 import { createSchemaInspector } from './schema/inspector';
 import { TableDetailsPanel } from './schema/tableDetailsPanel';
 import { DatabaseTreeProvider } from './tree/databaseTreeProvider';
@@ -107,6 +118,79 @@ export function activate(context: vscode.ExtensionContext): void {
       treeProvider.refresh();
       await statusBar.refresh();
     },
+  });
+  const runner = createQueryRunner({
+    getPassword,
+    reportMetadataWarning: (message) => console.warn(`[SQL Workbench] ${message}`),
+  });
+  const resultViewPanel = new ResultViewPanel(context.extensionUri, {
+    loadPage: async (request) => {
+      const connection = await connectionRegistry.get(request.connectionId);
+      if (!connection) {
+        throw new Error('The original connection for this result is unavailable. Run the query again.');
+      }
+      const pageRequest = {
+        sql: request.sql,
+        variableValues: request.variableValues,
+        page: request.page,
+        pageSize: request.pageSize,
+        totalRows: request.totalRows,
+      };
+      const executionOptions = getQueryExecutionOptions();
+      return runner.fetchPage(connection, pageRequest, executionOptions);
+    },
+  });
+  const resolveConnection = async (
+    document?: vscode.TextDocument,
+  ): Promise<ConnectionConfig | undefined> => {
+    if (document) {
+      const restored = await activeConnection.restoreDocumentBinding(document);
+      if (restored) {
+        treeProvider.refresh();
+        await statusBar.refresh();
+        return restored;
+      }
+    }
+
+    const current = await activeConnection.get(document);
+    if (current) {
+      return current;
+    }
+
+    const selected = await pickConnection(activeConnection);
+    if (!selected) {
+      return undefined;
+    }
+
+    await activeConnection.set(selected.id, document ?? getActiveSqlDocument());
+    void completionProvider.warm(document ?? getActiveSqlDocument());
+    treeProvider.refresh();
+    await statusBar.refresh();
+    return selected;
+  };
+  const sqlCodeLens = registerSqlCodeLensProvider();
+  const aiConfiguration = new AiConfigurationStore(context.secrets);
+  const aiSessions = new AiSessionStore(context.workspaceState);
+  const aiRuntime = new AiAgentRuntime({
+    adapter: new OpenAiCompatibleAdapter(aiConfiguration),
+    sessions: aiSessions,
+    schemaTools: createAiSchemaTools(schemaInspector),
+    getSecrets: async (connection) => [
+      await aiConfiguration.getApiKey(),
+      await connectionStore.getPassword(connection.id),
+    ],
+  });
+  const aiProvider = new AiAgentViewProvider({
+    extensionUri: context.extensionUri,
+    workspaceState: context.workspaceState,
+    configuration: aiConfiguration,
+    sessions: aiSessions,
+    runtime: aiRuntime,
+    drafts: new AiSqlDraftHost(aiSessions),
+    connections: connectionRegistry,
+    activeConnection,
+    resolveActiveConnection: () => resolveConnection(getActiveSqlDocument()),
+    refreshSqlCodeLenses: () => sqlCodeLens.refresh(),
   });
 
   context.subscriptions.push(
@@ -222,43 +306,27 @@ export function activate(context: vscode.ExtensionContext): void {
       );
     }),
     ...registerQueryCommands(context, {
-      runner: createQueryRunner({
-        getPassword,
-        reportMetadataWarning: (message) => console.warn(`[SQL Workbench] ${message}`),
-      }),
-      resolveConnection: async (document) => {
-        if (document) {
-          const restored = await activeConnection.restoreDocumentBinding(document);
-          if (restored) {
-            treeProvider.refresh();
-            await statusBar.refresh();
-            return restored;
-          }
-        }
-
-        const current = await activeConnection.get(document);
-        if (current) {
-          return current;
-        }
-
-        const selected = await pickConnection(activeConnection);
-        if (!selected) {
-          return undefined;
-        }
-
-        await activeConnection.set(selected.id, document ?? getActiveSqlDocument());
-        void completionProvider.warm(document ?? getActiveSqlDocument());
-        treeProvider.refresh();
-        await statusBar.refresh();
-        return selected;
-      },
+      runner,
+      resultViewPanel,
+      resolveConnection,
     }),
+    registerAiConfigurationCommand(context, aiConfiguration),
+    ...registerAiCommands({
+      provider: aiProvider,
+      resolveConnection,
+    }),
+    vscode.window.registerWebviewViewProvider(
+      AI_AGENT_VIEW_ID,
+      aiProvider,
+      { webviewOptions: { retainContextWhenHidden: true } },
+    ),
+    aiProvider,
     completionProvider,
     registerSqlHoverProvider({
       schemaInspector,
       resolveConnection: (document) => activeConnection.get(document),
     }),
-    registerSqlCodeLensProvider(),
+    sqlCodeLens,
     vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       if (editor && isSqlDocument(editor.document)) {
         void completionProvider.warm(editor.document);
@@ -478,4 +546,12 @@ async function openQueryDocument(connection: ConnectionConfig): Promise<vscode.T
 
   await vscode.window.showTextDocument(document, { preview: false });
   return document;
+}
+
+function getQueryExecutionOptions() {
+  const configuration = vscode.workspace.getConfiguration('sqlWorkbench');
+  return {
+    queryTimeoutMs: configuration.get<number>('queryTimeoutMs', 30_000),
+    resultPageSize: configuration.get<number>('resultPageSize', 10),
+  };
 }

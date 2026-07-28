@@ -11,7 +11,7 @@
 
 目标：参考 Database Client 的产品形态，实现我们自己的 VS Code 数据库插件。不做付费墙设计，竞品 Premium 能力在我们的产品中按优先级逐步免费实现。
 
-## 0. 实施校准（2026-07-10）
+## 0. 实施校准（2026-07-28）
 
 路线图最初是竞品调研后的规划稿，v0.1 和 v0.2 实施过程中已经根据稳定性、数据安全和真实使用反馈做过取舍。以下内容以当前代码和发布记录为准。
 
@@ -51,6 +51,8 @@
 
 - 所有版本都不支持在结果网格中直接编辑或保存单元格；修改数据必须显式执行 SQL。
 - 表属性面板保持只读；未来的表设计或结构对比只能生成 DDL 到 SQL 编辑器，由用户审阅后执行。
+- v0.3.0 已交付 AI Native Preview。模型通过 BYOK 直接接入用户配置的 OpenAI-compatible API，适配层运行在插件内，不提供服务端模型网关。
+- Agent Chat 不执行任何 SQL，也不发送查询结果值；所有 SQL 只能生成草稿并进入 `.sql` 编辑器，由用户决定是否执行。
 - ER 图延后到 v1.5，当前阶段先集中投入 SQL 编辑效率、结果查看、导出和表属性工作流。
 - 表详情不增加独立 Data 页签，查看表数据继续使用 SQL 查询。
 
@@ -88,7 +90,7 @@ Database Client 不是单一 SQL 插件，而是一个集成在 VS Code 内的�
 | HTTP/SOCKS 代理 | 连接经代理访问 | Premium | 企业网络/跳板场景 | 中 | v1.5 实现 |
 | Docker | 容器/镜像管理、日志、终端、Stats、Compose、网络卷 | Service 连接限制 | 本地开发环境管理 | 高 | v2.0，可作为独立扩展包 |
 | 云同步 | Database Client 服务端加密保存连接配置 | Premium | 多机同步 | 高，且涉及账号/安全 | 不做中心化账号；优先支持 VS Code Settings Sync + 本地加密导入导出 |
-| AI 助手 | `@dbclient` Chat participant，列库表、执行查询 | 官网新版功能 | 降低查询门槛 | 中 | v1.5，可接 VS Code LM API，默认只读 |
+| AI 助手 | `@dbclient` Chat participant，列库表、执行查询 | 官网新版功能 | 降低查询门槛 | 中 | v0.3.0 已交付 AI Native Preview：插件内 Agent Chat + SQL Explain，通过 BYOK 接入 OpenAI-compatible API；不发送结果值，不提供 Agent 执行 |
 | 遥测 | 匿名使用数据，可关闭 | 免费 / 付费均有 | 产品分析 | 低 | 默认不启用遥测；如需要必须显式开关 |
 
 ## 3. 我们的 MVP 范围
@@ -191,6 +193,35 @@ MVP 目标：先做到“开发者愿意日常用来连库、查表、跑 SQL、
 
 ## 4. 完整版路线图
 
+### v0.3.0 AI Native Preview（已交付）
+
+目标：把插件升级为面向开发者的 Schema-aware Agent，同时保留 SQL-first、可审阅和默认不发送数据值的安全边界。
+
+- BYOK 模型接入：
+  - 用户配置 OpenAI-compatible API 的 Base URL、模型和 API Key。
+  - API Key 仅保存到 VS Code `SecretStorage`。
+  - 请求由插件直接发送到用户配置的 API，不经过 SQL Workbench 托管服务。
+  - 插件内模块称为“模型适配层”，不称为服务端“模型网关”。
+- Agent Chat：
+  - 在 SQL Workbench Activity Bar 中提供侧边栏。
+  - 一个会话只绑定一个活动连接，不做跨连接查询。
+  - 按需读取相关表、字段、类型、注释和索引，并排除连接地址、用户名、路径和凭据。
+- 理解现有 SQL：
+  - 在 Run CodeLens 旁提供 `AI Explain`，并提供选区优先、当前语句回退的命令入口。
+  - 解释 SQL 的用途、表字段、JOIN、筛选、聚合、排序、分页、预期结果、写入影响、风险和可选优化。
+  - 支持全局 Explain 附加说明，定制回答语言、格式和审查重点，但固定安全 Prompt 不可覆盖。
+  - 解释过程不执行 SQL，也不读取或发送查询结果。
+- SQL 生成与编辑器执行：
+  - 结合相关 Schema 生成、修复和优化 SQL 草稿。
+  - 所有 SQL 草稿仅提供 Insert/Open，Agent 不能执行只读或写入语句。
+  - 用户必须在 `.sql` 编辑器中使用现有 Run Statement 执行。
+- 数据边界：
+  - v0.3.0 不向模型发送查询结果行或单元格值。
+  - Agent 不自动接收执行结果元数据；用户可主动粘贴错误文本请求修复。
+  - 会话历史不保存 API Key、结果行或完整 Schema 快照。
+
+v0.3.x 后续再补查询历史、完整 Schema/View 层级、多表通配符字段注释、结果工作流和安装体积优化。
+
 ### v1.0 数据库 IDE
 
 目标：覆盖传统数据库客户端核心能力。
@@ -236,11 +267,6 @@ MVP 目标：先做到“开发者愿意日常用来连库、查表、跑 SQL、
 - MongoDB 基础管理：
   - 数据库、集合、文档查看编辑。
   - JSON 查询。
-- AI 助手只读版：
-  - 列出连接、库、表、字段。
-  - 生成 SQL 草稿。
-  - 执行查询必须用户确认。
-
 ### v2.0 全栈 Service 面板
 
 目标：追赶竞品的一站式运维面板，但保持插件边界清晰。
@@ -312,6 +338,13 @@ interface SchemaInspector {
 - SQL 格式化：`sql-formatter`
 - Mock：`@faker-js/faker`
 
+### 模型适配层
+
+- 运行在 VS Code Extension Host 内，直接连接用户配置的 OpenAI-compatible API。
+- 负责流式响应、tool call、取消、超时和脱敏错误，不监听端口，也不代理到 SQL Workbench 服务。
+- 自动上下文只包含当前 SQL、方言和相关 Schema；连接配置、凭据、路径和查询结果值不得进入模型请求。
+- Agent 工具权限由插件代码判定，不能信任模型对 SQL 类型或安全性的自我声明。
+
 ### Webview UI
 
 - 推荐 React / Vue 均可，关键是表格性能。
@@ -327,7 +360,9 @@ interface SchemaInspector {
   - 无 WHERE 的 UPDATE / DELETE。
   - DROP / TRUNCATE。
   - 批量 DDL。
-- AI 功能默认只读，执行前必须确认。
+- AI Explain 不执行 SQL；AI 生成的所有 SQL 只能作为编辑器草稿。
+- Agent Chat 不保留任何 SQL 执行入口，执行统一发生在 `.sql` 编辑器。
+- v0.3.0 不把查询结果行或单元格值发送给模型。
 
 ## 6. 任务拆分建议
 
@@ -344,6 +379,7 @@ interface SchemaInspector {
 | Export | CSV/JSON/XLSX 导出，格式与范围弹框 | P1 |
 | JSON Cell Viewer | JSON/JSONB 只读查看、格式化、复制 | P1 |
 | Table Properties | Columns、完整 DDL、复制、刷新、重试 | P1 |
+| AI Native Preview | BYOK 模型适配、Agent Chat、SQL Explain 和编辑器 SQL 草稿 | P0（v0.3.0） |
 | History & Schema Depth | 查询历史、完整 Schema/View 层级 | P2 |
 | ER Diagram | 主外键关系、自动布局、导航与图片导出 | P3（v1.5） |
 
@@ -351,7 +387,8 @@ interface SchemaInspector {
 
 - 免费完整：不做连接数量限制，不把导出、Workspace 连接、完整 DDL、Mock 等生产力能力放到付费墙。
 - 本地优先：不要求注册账号，不上传连接配置。
-- 安全透明：所有敏感字段进入 SecretStorage，危险 SQL 强确认。
+- 安全透明：所有敏感字段进入 SecretStorage；AI 不发送结果值，也不执行 SQL；危险 SQL 继续由编辑器执行流程强确认。
+- AI Native：模型采用用户 BYOK 的 OpenAI-compatible API，插件内适配层保持供应商可替换和请求链路可审计。
 - 插件化数据源：每个 Driver 独立，后续能按需安装或懒加载。
 - 开发者体验优先：启动快、查询快、错误信息清楚，比“支持 40+ 数据源”更重要。
 
@@ -361,8 +398,9 @@ interface SchemaInspector {
 | --- | --- | --- |
 | v0.1 | 已完成 | 三类数据库连接、只读 Schema、原生 SQL 执行、分页结果组成最小查询闭环 |
 | v0.2 | 已完成 | 导出、变量、Workspace 连接、CodeLens、绑定恢复、完整表 DDL、结果字段注释、只读 JSON 查看器和安全确认进入主线 |
-| v0.2.x | 当前收尾 | 表结构字段排序在 v0.2.7 交付；自定义执行快捷键、连接配置导入导出、依赖裁剪和 VSIX 体积优化继续收口 |
-| v0.3.x | 下一阶段 | 查询历史、完整 Schema/View 层级、多表通配符字段注释、结果查看效率和错误恢复继续增强 |
+| v0.2.x | 已完成 | 表结构字段排序在 v0.2.7 交付，0.2 版本线完成 |
+| v0.3.0 | 已完成 | AI Native Preview：BYOK OpenAI-compatible API、Agent Chat、SQL Explain、SQL 生成/修复/优化草稿和编辑器执行边界 |
+| v0.3.x 后续 | 已排期 | 查询历史、完整 Schema/View 层级、多表通配符字段注释、结果查看效率、错误恢复和打包优化 |
 | v1.0+ | 长期 | DDL 生成辅助、备份恢复、ER 图、更多数据源、结构对比、远程连接与 Service 面板 |
 
-当前成功标准：开发者可以使用插件完成连接、查结构、执行 SQL、分页查看、JSON 检查和 CSV/JSON/XLSX 导出；任何数据或结构修改都通过可见 SQL 完成。
+当前成功标准：开发者既可以完成连接、查结构、执行 SQL、分页查看、JSON 检查和 CSV/JSON/XLSX 导出，也可以在 BYOK 模型下理解、生成、修复和优化 SQL；AI 不发送结果值、不执行 SQL，所有草稿都先进入 `.sql` 编辑器。

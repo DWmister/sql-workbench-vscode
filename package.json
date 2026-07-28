@@ -1,8 +1,8 @@
 {
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
-  "description": "A VS Code database workbench with connection management, schema browsing, SQL execution, and smart completions.",
-  "version": "0.2.7",
+  "description": "An AI-native VS Code database workbench with BYOK SQL assistance, schema browsing, and safe SQL execution.",
+  "version": "0.3.0",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {
@@ -19,6 +19,8 @@
     "mysql",
     "postgresql",
     "sqlite",
+    "ai",
+    "byok",
     "workbench"
   ],
   "engines": {
@@ -38,7 +40,12 @@
     "onCommand:sqlWorkbench.query.open",
     "onCommand:sqlWorkbench.query.runCurrent",
     "onCommand:sqlWorkbench.query.runAll",
-    "onCommand:sqlWorkbench.schema.openTable"
+    "onCommand:sqlWorkbench.schema.openTable",
+    "onView:sqlWorkbench.aiAgent",
+    "onCommand:sqlWorkbench.ai.configure",
+    "onCommand:sqlWorkbench.ai.explainSql",
+    "onCommand:sqlWorkbench.ai.newConversation",
+    "onCommand:sqlWorkbench.ai.clearHistory"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -66,6 +73,12 @@
         {
           "id": "sqlWorkbench.connections",
           "name": "Database"
+        },
+        {
+          "id": "sqlWorkbench.aiAgent",
+          "name": "Agent Chat",
+          "type": "webview",
+          "contextualTitle": "SQL Workbench Agent Chat"
         }
       ]
     },
@@ -122,6 +135,30 @@
         "title": "Open Table Columns",
         "category": "SQL Workbench",
         "icon": "$(table)"
+      },
+      {
+        "command": "sqlWorkbench.ai.configure",
+        "title": "Configure AI Model",
+        "category": "SQL Workbench",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "sqlWorkbench.ai.explainSql",
+        "title": "AI: Explain SQL",
+        "category": "SQL Workbench",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "sqlWorkbench.ai.newConversation",
+        "title": "AI: New Conversation",
+        "category": "SQL Workbench",
+        "icon": "$(add)"
+      },
+      {
+        "command": "sqlWorkbench.ai.clearHistory",
+        "title": "AI: Clear Conversation History",
+        "category": "SQL Workbench",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -147,6 +184,21 @@
           "command": "sqlWorkbench.connection.refresh",
           "when": "view == sqlWorkbench.connections",
           "group": "navigation@2"
+        },
+        {
+          "command": "sqlWorkbench.ai.newConversation",
+          "when": "view == sqlWorkbench.aiAgent",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sqlWorkbench.ai.configure",
+          "when": "view == sqlWorkbench.aiAgent",
+          "group": "navigation@2"
+        },
+        {
+          "command": "sqlWorkbench.ai.clearHistory",
+          "when": "view == sqlWorkbench.aiAgent",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -207,6 +259,22 @@
             ]
           },
           "description": "Workspace-level default values for SQL variables such as :name or $name. Values can be reviewed before execution."
+        },
+        "sqlWorkbench.ai.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL for the user-provided OpenAI-compatible API. HTTPS is required except for loopback development endpoints."
+        },
+        "sqlWorkbench.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Exact model ID accepted by the configured OpenAI-compatible API, not a provider or product name."
+        },
+        "sqlWorkbench.ai.explainInstructions": {
+          "type": "string",
+          "default": "",
+          "maxLength": 4000,
+          "description": "Optional global preferences for SQL Explain responses, such as language, format, or review focus. Fixed safety requirements remain enforced."
         }
       }
     },
@@ -232,7 +300,7 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "check": "tsc -p ./ --noEmit",
-    "verify": "npm run compile && node scripts/verify-workflows.js",
+    "verify": "npm run compile && node scripts/verify-workflows.js && node scripts/verify-ai-workflows.js",
     "screenshots": "node scripts/generate-readme-screenshots.js"
   },
   "devDependencies": {

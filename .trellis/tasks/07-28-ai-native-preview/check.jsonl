@@ -1,0 +1,2 @@
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "验证模型上下文、工具调用、配置页面、草稿到编辑器和禁止 Agent 执行的端到端边界。"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "验证 Agent Webview 的可访问性、事件和敏感数据排除。"}

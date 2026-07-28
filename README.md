@@ -6,13 +6,13 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 [简体中文](README_CN.md) • [Repository](https://github.com/DWmister/sql-workbench-vscode)
 
-![Version](https://img.shields.io/badge/version-0.2.7-2ea44f)
+![Version](https://img.shields.io/badge/version-0.3.0-2ea44f)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.90%2B-007ACC)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6)
 ![Databases](https://img.shields.io/badge/MySQL%20%7C%20PostgreSQL%20%7C%20SQLite-supported-2ea44f)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
-![Connection form](docs/images/connection-form.png)
+![Agent Chat and SQL Explain](docs/images/agent-chat.png)
 
 ## Why SQL Workbench?
 
@@ -32,6 +32,10 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 
 ## Screenshots
 
+### OpenAI-compatible model configuration
+
+![OpenAI-compatible model configuration](docs/images/ai-configuration.png)
+
 ### Read-only table properties and DDL
 
 ![Read-only table properties and DDL](docs/images/schema-view.png)
@@ -39,6 +43,10 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 ### Alias-aware SQL completion
 
 ![Alias-aware SQL completion](docs/images/sql-completion.png)
+
+### Connection configuration
+
+![Connection form](docs/images/connection-form.png)
 
 ## Features
 
@@ -59,6 +67,29 @@ SQL Workbench keeps database work inside the editor: write SQL in normal `.sql` 
 - Result webview with syntax-colored executed SQL, Table/JSON modes, pagination, CSV/JSON/XLSX export, and a read-only JSON/JSONB cell viewer.
 - Read-only schema tree: connection -> tables -> table -> columns.
 - Results, read-only table properties, and connection forms open beside the editor from a single-column layout, then reuse an existing editor group instead of creating more splits.
+
+## AI Native Preview (v0.3.0)
+
+Version 0.3.0 upgrades SQL Workbench from a traditional database extension to a schema-aware Agent for developers:
+
+- Bring your own key and connect directly to a user-configured OpenAI-compatible API. SQL Workbench does not host or proxy a model service.
+- Use an Agent Chat sidebar bound to one active database connection per conversation.
+- Explain a selected or current SQL statement from an `AI Explain` CodeLens or the Command Palette.
+- Add optional global Explain instructions for response language, format, or review focus without replacing the fixed safety prompt.
+- Generate, fix, and optimize SQL with only the related, redacted schema context.
+- Keep every generated statement as a reviewable SQL draft. Agent Chat cannot execute SQL.
+- Insert or open a draft in a `.sql` editor, then use the existing `Run Statement` action if you choose to execute it.
+- Keep messages and SQL drafts in chronological order while the chat follows the newest response.
+- Continue refining generated SQL in later messages with recent host-stored drafts included as bounded reference context.
+
+SQL explanation does not execute the statement. Version 0.3.0 does not send query-result rows or cell values to the model; model context is limited to the SQL, dialect, recent SQL drafts, and relevant schema metadata. Connection strings and stored API/database credentials are redacted before model requests and workspace persistence. Query-result analysis is not part of this release.
+
+To use AI features:
+
+1. Run `SQL Workbench: Configure AI Model`.
+2. Complete the configuration Webview with the Base URL, the exact API Model ID, an API Key stored in VS Code SecretStorage, and optional global Explain instructions. The Model ID must be the complete name accepted by the provider, not a brand name.
+3. Use `AI Explain` beside a statement's Run CodeLens, or run `SQL Workbench: AI: Explain SQL` for the selection/current statement.
+4. Open `Agent Chat` to generate, fix, or optimize SQL. Drafts provide only `Insert` and `Open`; execution remains in the `.sql` editor.
 
 ## Quick Start
 
@@ -129,10 +160,10 @@ Do not include `password`, `privateKey`, or `token` fields. The extension skips 
 
 ## Versioning
 
-Current enhancement release line: `0.2.x`.
+Current release line: `0.3.x`.
 
-- Enhancement fixes and small improvements: bump patch versions, for example `0.2.1`.
-- Larger feature updates before the full release: bump minor versions, for example `0.3.0`.
+- Enhancement fixes and small improvements: bump patch versions, for example `0.3.1`.
+- Larger feature updates before the full release: bump minor versions, for example `0.4.0`.
 - Full version with the planned complete feature set: bump major version to `1.0.0`.
 
 ## Local Verification
@@ -148,7 +179,9 @@ npm run compile
 # Covers SQL parsing/ranges, variables, dangerous SQL detection, workspace
 # connections/SecretStorage, result export serialization, DDL Hover, CodeLens, SQL file
 # binding recovery, MySQL/PostgreSQL pagination paths, SQLite schema metadata,
-# read-only JSON cell viewing, table-property field sorting, and webview behavior/syntax.
+# read-only JSON cell viewing, table-property field sorting, AI protocol/configuration,
+# model streaming/tool calls, configuration Webview, privacy boundaries,
+# editor-only SQL execution, and Webview syntax.
 npm run verify
 
 # Regenerate README screenshots after UI changes.
@@ -179,6 +212,10 @@ CHROME_PATH="/path/to/chrome" npm run screenshots
 11. From a single editor column, SQL Results, Table Properties, and connection forms open beside the active editor; once split, they reuse the active editor group.
 12. Result exports are written by the extension host after a VS Code save dialog; the webview never receives filesystem write access.
 13. Only JSON/JSONB result columns expose the read-only cell viewer; other data types remain plain cells until dedicated viewers are added.
+14. The OpenAI-compatible adapter runs in the extension host and reads the API key only from SecretStorage; the runtime also removes the bound connection's stored database password and structured connection data before sending or persisting text.
+15. AI conversations are bound to one connection and persist only sanitized display messages, SQL drafts, and tool summaries in workspace state; Schema snapshots and result rows are not stored. Recent drafts return to the model only as bounded reference context for follow-up requests.
+16. SQL Explain reads the fixed document URI, range, and version supplied by CodeLens and never calls the query runner.
+17. Agent Chat exposes no execution tool or message. Draft SQL must be inserted or opened in a SQL editor, where the existing Run CodeLens and safety confirmations remain authoritative.
 
 ## Editing Boundary
 
@@ -190,11 +227,9 @@ Result grids and table properties are read-only in every version. The extension 
 - `0.1.x`: MVP query workflow, SQL completion refinements, and connection-form polish.
 - `0.2.x`: CSV/JSON/XLSX result export, JSON result view, SQL variables, dangerous SQL confirmation, workspace connections, SQL file connection binding, richer connection editing, DDL hover and table-property DDL, CodeLens run actions, and high-frequency Premium-style enhancements.
 - `0.2.x`: Result-column comments and current-statement execution improvements.
-- `0.2.x`: Extension-level configuration for custom execution shortcuts.
-- `0.2.x`: Better packaging through bundling to reduce VSIX size.
-- `0.2.x`: Richer connection editing and import/export.
 - `0.2.7`: Sortable fields in read-only table properties.
-- `0.3.x`: Query history, result workflow refinements, and multi-table wildcard column comments.
+- `0.3.0`: AI Native Preview with BYOK OpenAI-compatible APIs, Agent Chat, statement-level SQL explanation, and editor-only SQL draft generation/fix/optimization.
+- `0.3.x` follow-ups: Query history, deeper Schema/View browsing, result workflow refinements, multi-table wildcard column comments, configurable execution shortcuts, connection import/export, and packaging optimization.
 - `1.0.0`: Complete planned feature set.
 
 ## FAQ
