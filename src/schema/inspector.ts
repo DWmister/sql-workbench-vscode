@@ -1,7 +1,7 @@
-import * as fs from 'fs';
 import mysql = require('mysql2/promise');
 import { Client } from 'pg';
 import initSqlJs = require('sql.js');
+import { readSqliteDatabaseFile } from '../connection/sqliteFile';
 import type { ConnectionConfig } from '../connection/types';
 import type { ColumnInfo, IndexInfo, TableDetails, TableInfo } from './types';
 
@@ -237,16 +237,10 @@ function getSqliteSchemaStatements(
 async function openSqliteDatabase(
   connection: ConnectionConfig,
 ): Promise<initSqlJs.Database> {
-  if (!connection.path) {
-    throw new Error('SQLite connection is missing a database file path.');
-  }
-
   const SQL = await getSqlJs();
-  const databaseBytes = fs.existsSync(connection.path)
-    ? await fs.promises.readFile(connection.path)
-    : undefined;
+  const databaseFile = await readSqliteDatabaseFile(connection.path);
 
-  return new SQL.Database(databaseBytes);
+  return new SQL.Database(databaseFile.bytes);
 }
 
 async function getSqlJs(): Promise<initSqlJs.SqlJsStatic> {

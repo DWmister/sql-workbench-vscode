@@ -1260,7 +1260,7 @@ function verifyPackageContributions() {
   const commandIds = new Set(
     packageJson.contributes.commands.map(({ command }) => command),
   );
-  assert.strictEqual(packageJson.version, '0.3.0');
+  assert.strictEqual(packageJson.version, '0.3.1');
   assert.ok(packageJson.activationEvents.includes('onView:sqlWorkbench.aiAgent'));
   assert.strictEqual(
     packageJson.contributes.views.sqlWorkbench[1].name,

@@ -1,7 +1,7 @@
-import * as fs from 'fs';
 import mysql = require('mysql2/promise');
 import { Client } from 'pg';
 import initSqlJs = require('sql.js');
+import { readSqliteDatabaseFile } from './sqliteFile';
 import type { NewConnectionConfig } from './types';
 
 export interface DraftConnectionConfig extends NewConnectionConfig {
@@ -36,15 +36,9 @@ export async function testConnection(
 }
 
 async function testSqliteConnection(config: DraftConnectionConfig): Promise<void> {
-  if (!config.path) {
-    throw new Error('SQLite database file path is required.');
-  }
-
   const SQL = await getSqlJs();
-  const databaseBytes = fs.existsSync(config.path)
-    ? await fs.promises.readFile(config.path)
-    : undefined;
-  const database = new SQL.Database(databaseBytes);
+  const databaseFile = await readSqliteDatabaseFile(config.path);
+  const database = new SQL.Database(databaseFile.bytes);
 
   database.close();
 }

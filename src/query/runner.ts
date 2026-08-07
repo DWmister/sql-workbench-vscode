@@ -4,6 +4,7 @@ import { performance } from 'perf_hooks';
 import mysql = require('mysql2/promise');
 import { Client } from 'pg';
 import initSqlJs = require('sql.js');
+import { readSqliteDatabaseFile } from '../connection/sqliteFile';
 import type { ConnectionConfig } from '../connection/types';
 import type { QueryColumn, QueryResult, QueryRow, QueryValue } from '../results/types';
 import {
@@ -109,20 +110,22 @@ async function executeSqlite(
   query: NormalizedQueryInput,
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult[]> {
-  if (!connection.path) {
-    return [createErrorResult(connection, query.sql, 'SQLite connection is missing a database file path.', 0)];
-  }
-
   const statements = splitSqlStatements(query.sql);
   if (statements.length === 0) {
     return [createErrorResult(connection, query.sql, 'No SQL statement to execute.', 0)];
   }
 
-  const SQL = await getSqlJs();
-  const databaseBytes = fs.existsSync(connection.path)
-    ? await fs.promises.readFile(connection.path)
-    : undefined;
-  const database = new SQL.Database(databaseBytes);
+  let database: initSqlJs.Database;
+  let databasePath: string;
+  try {
+    const SQL = await getSqlJs();
+    const databaseFile = await readSqliteDatabaseFile(connection.path);
+    databasePath = databaseFile.path;
+    database = new SQL.Database(databaseFile.bytes);
+  } catch (error) {
+    return [createErrorResult(connection, query.sql, getErrorMessage(error), 0)];
+  }
+
   const results: QueryResult[] = [];
   let shouldPersist = false;
 
@@ -171,7 +174,7 @@ async function executeSqlite(
     }
 
     if (shouldPersist) {
-      await persistSqliteDatabase(connection.path, database);
+      await persistSqliteDatabase(databasePath, database);
     }
   } finally {
     database.close();
@@ -185,15 +188,14 @@ async function fetchSqlitePage(
   request: QueryPageRequest,
   executionOptions: QueryExecutionOptions,
 ): Promise<QueryResult> {
-  if (!connection.path) {
-    return createErrorResult(connection, request.sql, 'SQLite connection is missing a database file path.', 0);
+  let database: initSqlJs.Database;
+  try {
+    const SQL = await getSqlJs();
+    const databaseFile = await readSqliteDatabaseFile(connection.path);
+    database = new SQL.Database(databaseFile.bytes);
+  } catch (error) {
+    return createErrorResult(connection, request.sql, getErrorMessage(error), 0);
   }
-
-  const SQL = await getSqlJs();
-  const databaseBytes = fs.existsSync(connection.path)
-    ? await fs.promises.readFile(connection.path)
-    : undefined;
-  const database = new SQL.Database(databaseBytes);
 
   try {
     return executeSqlitePage(database, connection, request.sql, request.variableValues ?? {}, request.page, request.pageSize, request.totalRows);

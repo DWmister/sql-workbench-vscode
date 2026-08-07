@@ -2,6 +2,12 @@
 
 All notable changes to SQL Workbench will be documented in this file.
 
+## 0.3.1 - 2026-08-07
+
+### Fixed
+
+- SQLite connection tests, schema inspection, query execution, and pagination now reject missing, non-file, or unreadable database paths instead of silently opening or persisting an empty database.
+
 ## 0.3.0 - 2026-07-28
 
 ### Added

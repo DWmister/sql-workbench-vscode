@@ -2,7 +2,7 @@
   "name": "sql-workbench-vscode",
   "displayName": "SQL Workbench",
   "description": "An AI-native VS Code database workbench with BYOK SQL assistance, schema browsing, and safe SQL execution.",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "dwmister",
   "license": "MIT",
   "repository": {

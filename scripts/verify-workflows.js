@@ -21,6 +21,7 @@ Module._load = function loadWithVscodeMock(request, parent, isMain) {
 const { createQueryRunner } = require(path.join(outDir, 'query', 'runner'));
 const { resolveMysqlColumnSources } = require(path.join(outDir, 'query', 'mysqlColumnSources'));
 const { ConnectionStore } = require(path.join(outDir, 'connection', 'connectionStore'));
+const { testConnection } = require(path.join(outDir, 'connection', 'connectionTester'));
 const { WorkspaceConnectionStore } = require(path.join(outDir, 'connection', 'workspaceConnectionStore'));
 const { createSchemaInspector } = require(path.join(outDir, 'schema', 'inspector'));
 const { findStatementAtOffset, getSqlStatementRanges, splitSqlStatements } = require(path.join(outDir, 'query', 'sqlParser'));
@@ -63,6 +64,7 @@ async function main() {
   await verifyConnectionSecrets();
   await verifyWorkspaceConnections();
   await verifyDatabaseTree();
+  await verifySqliteFileValidation();
   await verifySqliteReadOnlyResults();
   verifyConnectionFormRendering();
   await verifyTableDetailsPanel();
@@ -1216,9 +1218,53 @@ async function verifyConnectionSecrets() {
   assert.strictEqual(await store.getPassword(connection.id), undefined);
 }
 
+async function verifySqliteFileValidation() {
+  const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sql-workbench-sqlite-path-'));
+  const missingPath = path.join(fixtureRoot, 'missing.sqlite');
+  const connection = {
+    id: 'sqlite-missing-file',
+    name: 'Missing SQLite file',
+    type: 'sqlite',
+    group: 'Verify',
+    path: missingPath,
+  };
+
+  try {
+    const connectionResult = await testConnection(connection);
+    assert.strictEqual(connectionResult.ok, false);
+    assert.ok(connectionResult.message.includes(`SQLite database file does not exist: ${missingPath}`));
+
+    const inspector = createSchemaInspector();
+    await assert.rejects(
+      inspector.listTables(connection),
+      (error) => error instanceof Error
+        && error.message.includes(`SQLite database file does not exist: ${missingPath}`),
+    );
+
+    const runner = createQueryRunner();
+    const [executeResult] = await runner.execute(connection, 'CREATE TABLE should_not_exist (id INTEGER);');
+    assert.ok(executeResult.error?.includes(`SQLite database file does not exist: ${missingPath}`));
+
+    const pageResult = await runner.fetchPage(connection, {
+      sql: 'SELECT * FROM should_not_exist',
+      page: 1,
+      pageSize: 10,
+    });
+    assert.ok(pageResult.error?.includes(`SQLite database file does not exist: ${missingPath}`));
+    assert.strictEqual(fs.existsSync(missingPath), false);
+
+    const directoryResult = await testConnection({ ...connection, path: fixtureRoot });
+    assert.strictEqual(directoryResult.ok, false);
+    assert.ok(directoryResult.message.includes(`SQLite database path is not a file: ${fixtureRoot}`));
+  } finally {
+    fs.rmSync(fixtureRoot, { recursive: true, force: true });
+  }
+}
+
 async function verifySqliteReadOnlyResults() {
   const dbPath = path.join(os.tmpdir(), `sql-workbench-v02-${process.pid}.sqlite`);
   fs.rmSync(dbPath, { force: true });
+  fs.writeFileSync(dbPath, Buffer.alloc(0));
 
   try {
     const runner = createQueryRunner();
@@ -1230,13 +1276,19 @@ async function verifySqliteReadOnlyResults() {
       path: dbPath,
     };
 
-    await runner.execute(connection, [
+    const connectionResult = await testConnection(connection);
+    assert.strictEqual(connectionResult.ok, true);
+
+    const setupResults = await runner.execute(connection, [
       'CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INTEGER);',
       'CREATE UNIQUE INDEX idx_items_name ON items (name);',
       "INSERT INTO items (name, qty) VALUES ('apple', 3);",
     ].join('\n'));
+    assert.ok(setupResults.every((result) => !result.error));
 
     const inspector = createSchemaInspector();
+    const tables = await inspector.listTables(connection);
+    assert.deepStrictEqual(tables.map((table) => table.name), ['items']);
     const details = await inspector.getTableDetails({ connection, name: 'items' });
     assert.strictEqual(details.columns.find((column) => column.name === 'id').primaryKey, true);
     assert.ok(details.indexes.some((index) =>
